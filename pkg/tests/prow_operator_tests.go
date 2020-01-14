@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var _ = ginkgo.It("Prow Operator Tests", func() {
+var _ = ginkgo.Describe("Prow Operator Tests", func() {
 	defer ginkgo.GinkgoRecover()
 	config, err := rest.InClusterConfig()
 
