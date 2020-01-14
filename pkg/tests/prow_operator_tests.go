@@ -22,7 +22,7 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Make sure the CRD exists
-		_, err = apiextensions.ApiextensionsV1().CustomResourceDefinitions().Get("prowjobs.prow.k8s.io", v1.GetOptions{})
+		_, err = apiextensions.ApiextensionsV1beta1().CustomResourceDefinitions().Get("prowjobs.prow.k8s.io", v1.GetOptions{})
 
 		if err != nil {
 			metadata.Instance.FoundCRD = false
