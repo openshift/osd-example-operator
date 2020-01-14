@@ -1,4 +1,3 @@
-
 DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 OUT_FILE := "$(DIR)prow-operator-test-harness"
 
