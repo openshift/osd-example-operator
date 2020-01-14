@@ -11,5 +11,5 @@ FROM registry.access.redhat.com/ubi7/ubi-minimal:latest
 
 COPY --from=builder /go/src/github.com/meowfaceman/prow-operator-test-harness/prow-operator-test-harness.test prow-operator-test-harness.test
 
-ENTRYPOINT [ "prow-operator-test-harness.test" ]
+ENTRYPOINT [ "/prow-operator-test-harness.test" ]
 
