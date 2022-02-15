@@ -1,4 +1,4 @@
-FROM registry.svc.ci.openshift.org/openshift/release:golang-1.16 AS builder
+FROM registry.ci.openshift.org/openshift/release:golang-1.16 AS builder
 
 ENV PKG=/go/src/github.com/mrsantamaria/osde2e-example-test-harness/
 WORKDIR ${PKG}
