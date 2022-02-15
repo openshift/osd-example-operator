@@ -1,6 +1,6 @@
-# prow-operator-test-harness
+# osde2e-example-test-harness
 
-This is an example test harness meant for testing the prow operator addon. It does the following:
+This is an example test harness meant for testing the osde2e example operator addon. It does the following:
 
 * Tests for the existence of the prowjobs.prow.k8s.io CRD. This should be present if the prow
   operator addon has been installed properly.
