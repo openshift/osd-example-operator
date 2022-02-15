@@ -1,4 +1,4 @@
-module github.com/meowfaceman/prow-operator-test-harness
+module github.com/mrsantamaria/osde2e-example-test-harness
 
 go 1.13
 

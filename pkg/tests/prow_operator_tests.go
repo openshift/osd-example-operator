@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"github.com/meowfaceman/prow-operator-test-harness/pkg/metadata"
+	"github.com/mrsantamaria/osde2e-example-test-harness/pkg/metadata"
 	"github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"

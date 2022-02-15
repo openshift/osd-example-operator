@@ -4,12 +4,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/meowfaceman/prow-operator-test-harness/pkg/metadata"
+	"github.com/mrsantamaria/osde2e-example-test-harness/pkg/metadata"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/reporters"
 	. "github.com/onsi/gomega"
 
-	_ "github.com/meowfaceman/prow-operator-test-harness/pkg/tests"
+	_ "github.com/mrsantamaria/osde2e-example-test-harness/pkg/tests"
 )
 
 const (
