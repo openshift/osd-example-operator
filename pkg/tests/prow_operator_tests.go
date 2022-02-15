@@ -2,7 +2,7 @@ package tests
 
 import (
 	"github.com/mrsantamaria/osde2e-example-test-harness/pkg/metadata"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,5 +31,5 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 		}
 
 		Expect(err).NotTo(HaveOccurred())
-	})
+	}, float64(30))
 })
