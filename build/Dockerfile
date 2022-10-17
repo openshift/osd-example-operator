@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/openshift/release:golang-1.16 AS builder
+FROM quay.io/app-sre/boilerplate:image-v2.3.2 AS builder
 
 ENV PKG=/go/src/github.com/mrsantamaria/osde2e-example-test-harness/
 WORKDIR ${PKG}
