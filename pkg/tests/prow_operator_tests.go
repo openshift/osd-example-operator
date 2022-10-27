@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"log"
+
 	"github.com/mrsantamaria/osde2e-example-test-harness/pkg/metadata"
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -22,11 +24,13 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// Make sure the CRD exists
-		_, err = apiextensions.ApiextensionsV1beta1().CustomResourceDefinitions().Get("addons.addons.managed.openshift.io", v1.GetOptions{})
+		result, err := apiextensions.ApiextensionsV1().CustomResourceDefinitions().Get("addons.addons.managed.openshift.io", v1.GetOptions{})
 
 		if err != nil {
+			log.Printf("CRD not found: %v", err.Error())
 			metadata.Instance.FoundCRD = false
 		} else {
+			log.Printf("CRD found: %v", result)
 			metadata.Instance.FoundCRD = true
 		}
 
