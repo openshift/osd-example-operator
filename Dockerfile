@@ -4,7 +4,7 @@ ENV PKG=/go/src/github.com/openshift/osde2e-example-test-harness/
 WORKDIR ${PKG}
 
 # compile test binary
-COPY .. .
+COPY . .
 RUN make
 
 FROM registry.access.redhat.com/ubi7/ubi-minimal:latest
