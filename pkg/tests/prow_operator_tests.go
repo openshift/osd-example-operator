@@ -24,6 +24,7 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 		apiextensions, err := clientset.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred())
 
+
 		// Make sure the CRD exists. Using crd name for reference-addon used in the example.
 		crdName := "referenceaddons.reference.addons.managed.openshift.io"
 		result, err := apiextensions.ApiextensionsV1().CustomResourceDefinitions().Get(crdName, v1.GetOptions{})
@@ -33,6 +34,7 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 			metadata.Instance.FoundCRD = false
 		} else {
 			log.Printf("CRD %v found: %v", crdName, result)
+
 			metadata.Instance.FoundCRD = true
 		}
 
