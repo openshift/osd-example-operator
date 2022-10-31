@@ -1,9 +1,12 @@
 package tests
 
 import (
-	"github.com/mrsantamaria/osde2e-example-test-harness/pkg/metadata"
+	"log"
+
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/openshift/osde2e-example-test-harness/pkg/metadata"
+
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -21,12 +24,15 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 		apiextensions, err := clientset.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Make sure the CRD exists
-		_, err = apiextensions.ApiextensionsV1beta1().CustomResourceDefinitions().Get("prowjobs.prow.k8s.io", v1.GetOptions{})
+		// Make sure the CRD exists. Using crd name for reference-addon used in the example.
+		crdName := "referenceaddons.reference.addons.managed.openshift.io"
+		result, err := apiextensions.ApiextensionsV1().CustomResourceDefinitions().Get(crdName, v1.GetOptions{})
 
 		if err != nil {
+			log.Printf("CRD %v not found: %v", crdName, err.Error())
 			metadata.Instance.FoundCRD = false
 		} else {
+			log.Printf("CRD %v found: %v", crdName, result)
 			metadata.Instance.FoundCRD = true
 		}
 
