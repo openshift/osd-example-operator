@@ -1,4 +1,4 @@
-package prow_operator_test_harness
+package exampleaddontestharness
 
 import (
 	"path/filepath"
@@ -22,7 +22,7 @@ func TestProwOperatorTestHarness(t *testing.T) {
 	RegisterFailHandler(Fail)
 	jUnitReporter := reporters.NewJUnitReporter(filepath.Join(testResultsDirectory, jUnitOutputFilename))
 
-	RunSpecsWithDefaultAndCustomReporters(t, "Prow Operator Test Harness", []Reporter{jUnitReporter})
+	RunSpecsWithDefaultAndCustomReporters(t, "Example Addon Test Harness", []Reporter{jUnitReporter})
 
 	err := metadata.Instance.WriteToJSON(filepath.Join(testResultsDirectory, addonMetadataName))
 	if err != nil {
