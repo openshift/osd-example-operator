@@ -27,6 +27,8 @@ var _ = ginkgo.Describe("Example Addon Tests", func() {
 		apiextensions, err := clientset.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred())
 
+		// Make sure the CRD exists. Using crd name for reference-addon used in the example.
+		crdName := "referenceaddons.reference.addons.managed.openshift.io"
 		result, err := apiextensions.ApiextensionsV1().CustomResourceDefinitions().Get(crdName, v1.GetOptions{})
 
 		if err != nil {
