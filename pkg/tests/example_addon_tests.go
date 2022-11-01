@@ -14,7 +14,7 @@ import (
 
 // Using Reference Addon for test
 var crdName = "referenceaddons.reference.addons.managed.openshift.io"
-var timeout = float64(30)
+
 var _ = ginkgo.Describe("Example Addon Tests", func() {
 	defer ginkgo.GinkgoRecover()
 	config, err := rest.InClusterConfig()
@@ -39,5 +39,5 @@ var _ = ginkgo.Describe("Example Addon Tests", func() {
 		}
 
 		Expect(err).NotTo(HaveOccurred())
-	}, timeout)
+	}, float64(30))
 })
