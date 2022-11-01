@@ -12,7 +12,10 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-var _ = ginkgo.Describe("Prow Operator Tests", func() {
+// Make sure the CRD exists. Using crd name for reference-addon used in the example.
+var crdName = "referenceaddons.reference.addons.managed.openshift.io"
+
+var _ = ginkgo.Describe("Example Addon Tests", func() {
 	defer ginkgo.GinkgoRecover()
 	config, err := rest.InClusterConfig()
 
@@ -20,12 +23,10 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 		panic(err)
 	}
 
-	ginkgo.It("prowjobs.prow.k8s.io CRD exists", func() {
+	ginkgo.It("referenceaddons.reference.addons.managed.openshift.io CRD exists", func() {
 		apiextensions, err := clientset.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Make sure the CRD exists. Using crd name for reference-addon used in the example.
-		crdName := "referenceaddons.reference.addons.managed.openshift.io"
 		result, err := apiextensions.ApiextensionsV1().CustomResourceDefinitions().Get(crdName, v1.GetOptions{})
 
 		if err != nil {
