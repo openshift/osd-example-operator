@@ -3,15 +3,19 @@ package tests
 import (
 	"log"
 
-	"github.com/mrsantamaria/osde2e-example-test-harness/pkg/metadata"
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/openshift/osde2e-example-test-harness/pkg/metadata"
+
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
 
-var _ = ginkgo.Describe("Prow Operator Tests", func() {
+// Using Reference Addon for test
+var crdName = "referenceaddons.reference.addons.managed.openshift.io"
+
+var _ = ginkgo.Describe("Example Addon Tests", func() {
 	defer ginkgo.GinkgoRecover()
 	config, err := rest.InClusterConfig()
 
@@ -19,7 +23,7 @@ var _ = ginkgo.Describe("Prow Operator Tests", func() {
 		panic(err)
 	}
 
-	ginkgo.It("prowjobs.prow.k8s.io CRD exists", func() {
+	ginkgo.It(crdName+" CRD exists", func() {
 		apiextensions, err := clientset.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred())
 

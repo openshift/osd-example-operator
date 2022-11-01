@@ -1,4 +1,4 @@
-module github.com/mrsantamaria/osde2e-example-test-harness
+module github.com/openshift/osde2e-example-test-harness
 
 go 1.16
 
