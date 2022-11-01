@@ -2,7 +2,7 @@ package metadata
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"log"
 	"os"
 )
 
@@ -23,8 +23,14 @@ func (m *metadata) WriteToJSON(outputFilename string) (err error) {
 		return err
 	}
 
-	if err = ioutil.WriteFile(outputFilename, data, os.FileMode(0644)); err != nil {
-		return err
+	f, err := os.OpenFile(outputFilename,
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Println(err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(string(data)); err != nil {
+		log.Println(err)
 	}
 
 	return nil
