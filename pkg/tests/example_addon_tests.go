@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// Make sure the CRD exists.
+// Using Reference Addon for test
 var crdName = "referenceaddons.reference.addons.managed.openshift.io"
 var timeout = float64(30)
 var _ = ginkgo.Describe("Example Addon Tests", func() {
