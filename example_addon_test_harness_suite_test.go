@@ -4,11 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/reporters"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift/osde2e-example-test-harness/pkg/metadata"
-
 	_ "github.com/openshift/osde2e-example-test-harness/pkg/tests"
 )
 
@@ -20,9 +18,10 @@ const (
 
 func TestExampleAddonTestHarness(t *testing.T) {
 	RegisterFailHandler(Fail)
-	jUnitReporter := reporters.NewJUnitReporter(filepath.Join(testResultsDirectory, jUnitOutputFilename))
 
-	RunSpecsWithDefaultAndCustomReporters(t, "Example Addon Test Harness", []Reporter{jUnitReporter})
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	reporterConfig.JUnitReport = filepath.Join(testResultsDirectory, jUnitOutputFilename)
+	RunSpecs(t, "Example Addon Test Harness", suiteConfig, reporterConfig)
 
 	err := metadata.Instance.WriteToJSON(filepath.Join(testResultsDirectory, addonMetadataName))
 	if err != nil {
