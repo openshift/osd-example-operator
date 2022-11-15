@@ -9,6 +9,8 @@ import (
 
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
 	"k8s.io/client-go/rest"
 )
 
@@ -23,7 +25,7 @@ var _ = ginkgo.Describe("Example Addon Tests", func() {
 		panic(err)
 	}
 
-	ginkgo.It(crdName+" CRD exists", func() {
+	ginkgo.It("Example CRD - "+crdName+" - exists", func() {
 		apiextensions, err := clientset.NewForConfig(config)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -40,4 +42,15 @@ var _ = ginkgo.Describe("Example Addon Tests", func() {
 
 		Expect(err).NotTo(HaveOccurred())
 	}, float64(30))
+
+	ginkgo.It("Example passthrough secret exists", func() {
+		k8s, err := kubernetes.NewForConfig(config)
+		Expect(err).NotTo(HaveOccurred())
+		sec, err := k8s.CoreV1().Secrets("osde2e-ci-secrets").Get("ci-secrets", v1.GetOptions{})
+
+		Expect(sec.Data["testkey"]).ToNot(BeNil())
+		Expect(err).NotTo(HaveOccurred())
+
+	}, float64(30))
+
 })
