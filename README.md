@@ -92,7 +92,7 @@ After the Test Harness has been validated to work as intended locally, this flow
     sudo docker build . -t quay.io/<-- your test harness image-->
     sudo docker push quay.io/<--your test harness image-->
     ``` 
-   Use this test image as the `ADDON_TEST_HARNESSES` in step 5 below.
+   Use this test image as the `ADDON_TEST_HARNESSES` in the next steps.
 2. Follow the steps in the [example above](#locally-running-this-example). Remember to change `ADDON_TEST_HARNESSES` as well as `ADDON_IDS` to your addon. 
  
 ## Configuring OSDe2e
