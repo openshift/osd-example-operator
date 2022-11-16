@@ -54,30 +54,36 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 
 ## Locally Running This Example 
 
-- create a stage rosa cluster
-- clone osde2e: `git clone git@github.com:openshift/osde2e.git`
-- build osde2e executable: `make build`
-- run osde2e addon example suite
+- Create a stage rosa cluster
+- Clone osde2e: `git clone git@github.com:openshift/osde2e.git`
+- Build osde2e executable: `make build`
+- Run osde2e addon example suite
 
-```bash
-#!/usr/bin/env bash
-OCM_TOKEN="[OCM token here]" \ 
-CLUSTER_ID="[cluster id here]" \
-ADDON_IDS="reference-addon" \ 
-ADDON_TEST_HARNESSES="quay.io/rmundhe_oc/osde2e-example-test-harness" \
-REPORT_DIR="[path to report directory]" \
-ROSA_ENV=stage \
-./osde2e test --configs rosa,stage,addon-suite --must-gather false --destroy-cluster false --skip-health-check true
-```
+  ```bash
+  #!/usr/bin/env bash
+  OCM_TOKEN="[OCM token here]" \ 
+  CLUSTER_ID="[cluster id here]" \
+  ADDON_IDS="reference-addon" \ 
+  ADDON_TEST_HARNESSES="quay.io/rmundhe_oc/osde2e-example-test-harness" \
+  REPORT_DIR="[path to report directory]" \
+  ROSA_ENV=stage \
+  ./osde2e test \
+  --configs rosa,stage,addon-suite \
+  --must-gather false \
+  --destroy-cluster false \
+  --skip-health-check true
+  ```
+  
+  **Arguments:** 
+  - The `--configs` arg here maps to `$CONFIGS` environment var in the prow config, see description in [parameters](#parameters) section. 
+  - `--destroy-cluster`, `--skip-health-check` and `--must-gather` help shorten the time consumed by the test to run locally. 
 
-- ADDON_ID: used to install addon. This should be the reference to ocm id name of the addon
-- ADDON_TEST_HARNESS: the image run inside the addon test pod. This should be the image reference to your test harness's published image.
-- REPORT_DIR: local path to view test results
-
+  **Environment variables:**
+  - See [parameters](#parameters) section for description of environment variables used. 
 
 Once the execution is complete, you can view the report in the defined `REPORT_DIR` directory.
 
-After the Test Harness has been validated to work as intended locally, this flow can be performed in a CI pipeline to test agaisnt OSD releases.
+After the Test Harness has been validated to work as intended locally, this flow can be performed in a CI pipeline to test agaisnt OSD releases as described below.
  
 ## Configuring OSDe2e
 
