@@ -219,8 +219,6 @@ The following can be passed to `osde2e` executable as environment variables.
 
 ### More on Secrets
 
-To set up your vault secrets, if you are not a part of the public GitHub Organization `OpenShift`, join it by following [these instructions](https://source.redhat.com/groups/public/atomicopenshift/atomicopenshift_wiki/setting_up_your_accounts_openshift).
-
 You'll need to provide some additional details about your AWS account in a secret. In particular, you'll need to provide these values in your credentials secret:
 
 ```
@@ -233,6 +231,7 @@ And the following optional key
 ```
 aws-region
 ```
+To set up your vault secrets, if you are not a part of the public GitHub Organization `OpenShift`, join it by following [these instructions](https://source.redhat.com/groups/public/atomicopenshift/atomicopenshift_wiki/setting_up_your_accounts_openshift).
 Follow the documentation [here](https://docs.ci.openshift.org/docs/how-tos/adding-a-new-secret-to-ci/) to create these secrets.
 
 ##### Passthrough Keys  
