@@ -101,7 +101,7 @@ After the Test Harness has been validated to work as intended locally, this flow
 2. Build and push the latest docker image to a quay repo.
 3. Create a prow job in [osde2e periodic pipeline in release repo](https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/osde2e/openshift-osde2e-main-periodics.yaml) using following example.
 4. Run `make jobs` in release repo base directory.
-5. Commit the changes and make a PR with this job against the [openshift/release](https://github.com/openshift/release) repo.
+5. Commit the changes and make a PR.
  
 ### Example Periodic Prow Job Config
 Defined in release repo: https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/osde2e/openshift-osde2e-main-periodics.yaml#L158 
