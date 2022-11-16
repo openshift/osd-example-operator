@@ -253,7 +253,7 @@ To consume any of these passthrough keys loaded into the cluster, you may access
 
 Once loaded, the key will be listed as one of the key-value pairs contained in this secret and the value will be base64 encoded version of the one you specify in vault.
 
-NOTE: The pipeline loads the secrets `osde2e-common` and `osde2e-credentials`, followed by the ones you supply. This allows your credentials to override any duplicate credentials supplied in our config.
+> The pipeline loads the secrets `osde2e-common` and `osde2e-credentials`, followed by the ones you supply. This allows your credentials to override any duplicate credentials supplied in our config.
 
 ## SKUs and Quota
 
