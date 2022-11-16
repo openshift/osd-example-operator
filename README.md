@@ -3,6 +3,7 @@
   * [Designing e2e Tests](#designing-e2e-tests)
   * [The Structure of an Addon Test](#the-structure-of-an-addon-test)
   * [Locally Running This Example](#locally-running-this-example)
+  * [Locally Run Your Test Harness](#locally-run-your-test-harness)
   * [Configuring OSDe2e](#configuring-osde2e)
     * [Example Periodic Prow Job Config](#example-periodic-prow-job-config)
     * [Parameters](#parameters)
@@ -54,10 +55,10 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 
 ## Locally Running This Example 
 
-- Create a stage rosa cluster
-- Clone osde2e: `git clone git@github.com:openshift/osde2e.git`
-- Build osde2e executable: `make build`
-- Run osde2e addon example suite
+1. Create a stage rosa cluster
+2. Clone osde2e: `git clone git@github.com:openshift/osde2e.git`
+3. Build osde2e executable: `make build`
+4. Run osde2e addon example suite
 
   ```bash
   #!/usr/bin/env bash
@@ -73,7 +74,7 @@ How an add-on is tested can vary between groups and projects. In light of this, 
   --destroy-cluster false \
   --skip-health-check true
   ```
-  
+ 
   **Arguments:** 
   - The `--configs` arg here maps to `$CONFIGS` environment var in the prow config, see description in [parameters](#parameters) section. 
   - `--destroy-cluster`, `--skip-health-check` and `--must-gather` help shorten the time consumed by the test to run locally. 
@@ -84,6 +85,16 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 Once the execution is complete, you can view the report in the defined `REPORT_DIR` directory.
 
 After the Test Harness has been validated to work as intended locally, this flow can be performed in a CI pipeline to test agaisnt OSD releases as described below.
+
+## Locally Run Your Test Harness
+1. `ADDON_TEST_HARNESSES` image: 
+   Build and push latest docker image i.e.
+    ```bash
+    sudo docker build . -t quay.io/<-- your test harness image-->
+    sudo docker push quay.io/<--your test harness image-->
+    ``` 
+   Use this test image name as the `ADDON_TEST_HARNESSES` in step 5 below.
+2. Follow the subsequent steps in the [example above](#locally-running-this-example). Remember to change `ADDON_TEST_HARNESSES` as well as `ADDON_IDS` to your addon. 
  
 ## Configuring OSDe2e
 
