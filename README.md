@@ -18,7 +18,7 @@
 
 This respository is an example of a test harness. 
 Test harnesses are standalone test repositories executed by osde2e framework in prow jobs. 
-This example uses the Reference Addon as an example and demonstrates basic test assertions. 
+This harness uses the Reference Addon as an example and demonstrates basic test assertions. 
 It does the following:
 
 * Contains source for example test-harness image published in: quay.io/rmundhe_oc/osde2e-example-test-harness
