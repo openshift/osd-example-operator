@@ -21,11 +21,10 @@ Test harnesses are standalone test repositories executed by osde2e framework in 
 This harness uses the Reference Addon as an example and demonstrates basic test assertions. 
 It does the following:
 
-* Contains source for example test-harness image published in: quay.io/rmundhe_oc/osde2e-example-test-harness
-* Asserts the existence of the reference-addon CRD i.e., *referenceaddons.reference.addons.managed.openshift.io*. This should be present if the *reference-addon* has been installed properly.
-* When `osde2e` executes this harness, it writes out a junit XML file with tests results to the `/test-run-results` directory as expected
-  by the [osde2e](https://github.com/openshift/osde2e)  test framework.
-* And also writes an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
+* Contains source for example test-harness image published in: (quay.io/rmundhe_oc/osde2e-example-test-harness)
+* Asserts the existence of the _reference-addon_ CRD i.e., *referenceaddons.reference.addons.managed.openshift.io*. This should be present if the *reference-addon* has been installed properly.
+* When `osde2e` test framework executes this harness, it writes out a junit XML file with tests results to the `/test-run-results` directory.
+* And an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
 
 You may use this exampe to create your own addon test harness.
 
@@ -55,9 +54,10 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 ## Locally Running This Example 
 
 1. Create a stage rosa cluster
-2. Clone osde2e: `git clone git@github.com:openshift/osde2e.git`
-3. Build osde2e executable: `make build`
-4. Run osde2e addon example suite
+2. Install your addon/s on it
+3. Clone osde2e: `git clone git@github.com:openshift/osde2e.git`
+4. Build osde2e executable: `make build`
+5. Run osde2e as follows
 
   ```bash
   #!/usr/bin/env bash
@@ -86,26 +86,28 @@ Once the execution is complete, you can view the report in the defined `REPORT_D
 After the Test Harness has been validated to work as intended locally, this flow can be performed in a CI pipeline to test agaisnt OSD releases as described below.
 
 ## Locally Running Your Test Harness
-1. `ADDON_TEST_HARNESSES` image: 
+1. Create `ADDON_TEST_HARNESSES` image: 
    Build and push latest docker image i.e.
     ```bash
     sudo docker build . -t quay.io/<-- your test harness image-->
     sudo docker push quay.io/<--your test harness image-->
     ``` 
-   Use this test image name as the `ADDON_TEST_HARNESSES` in step 5 below.
-2. Follow the subsequent steps in the [example above](#locally-running-this-example). Remember to change `ADDON_TEST_HARNESSES` as well as `ADDON_IDS` to your addon. 
+   Use this test image as the `ADDON_TEST_HARNESSES` in step 5 below.
+2. Follow the steps in the [example above](#locally-running-this-example). Remember to change `ADDON_TEST_HARNESSES` as well as `ADDON_IDS` to your addon. 
  
 ## Configuring OSDe2e
 
-1. Write addon test harness by referring to this harness as an example.
-2. Push the docker image to a quay repo.
-3. Create a prow job using following example
-4. Open a PR against the [openshift/release](https://github.com/openshift/release) repo.
+1. Write addon test harness using this harness as an example.
+2. Build and push the latest docker image to a quay repo.
+3. Create a prow job in [osde2e periodic pipeline](https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/osde2e/openshift-osde2e-main-periodics.yaml) using following example.
+4. Run `make jobs` in release repo base directory.
+5. Commit the changes and make a PR with this job against the [openshift/release](https://github.com/openshift/release) repo.
  
 ### Example Periodic Prow Job Config
 Defined in release repo: https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/osde2e/openshift-osde2e-main-periodics.yaml#L158 
 
-Comments denote brief instructions. Do not update keys with no comments. For your job, do not copy from here, use the git version linked above instead. `ci-operator` does not like comments in yamls. 
+Comments denote brief instructions. To adapt this to your job, you would redefine the values denoted with comments.
+Do not update keys with no comments next to them. For your job, do not copy from here, use the git version linked above instead. `ci-operator` does not like comments in yamls. 
 ```yaml
 - agent: kubernetes
   cluster: build05
@@ -177,8 +179,6 @@ Comments denote brief instructions. Do not update keys with no comments. For you
         secret:
           secretName: osde2e-rosa-stage
 ```
-
-To adapt this to your job, you would redefine the values denoted with comments.
 
 
 ### Parameters ###
