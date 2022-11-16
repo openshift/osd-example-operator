@@ -1,5 +1,5 @@
  <!-- TOC -->
-* [What is osde2e-example-test-harness?](#what-is-osde2e-example-test-harness)
+* [osde2e-example-test-harness](#osde2e-example-test-harness)
 * [Add-On Testing](#add-on-testing)
   * [Designing e2e tests](#designing-e2e-tests)
   * [The Structure of an Addon Test](#the-structure-of-an-addon-test)
@@ -14,9 +14,10 @@
     * [Slack Notifications](#slack-notifications)
   * [Querying results from Datahub](#querying-results-from-datahub)
 <!-- TOC -->
-# What is osde2e-example-test-harness?
+# osde2e-example-test-harness
 
-This respository is an example of a basic test harness. It uses the Reference Addon as an example and asserts basic functionalities offered by test harness. It does the following:
+This respository is an example of a basic test harness. 
+It uses the Reference Addon as an example and demonstrates basic test assertions. It does the following:
 
 * Uses *Reference Addon* as example
 * Tests for the existence of the addon CRD i.e., *referenceaddons.reference.addons.managed.openshift.io*. This should be present if the *reference-addon* has been installed properly.
@@ -26,7 +27,7 @@ This respository is an example of a basic test harness. It uses the Reference Ad
 
 You may use this exampe to create your own addon test harness.
 
-# Add-On Testing
+# Add-On Testing 
 This document describes the requirements to configure E2E testing of an Addon using osde2e framework. The addons integration (e2e) tests are not meant to replace any existing QE.
 
 Note: This document is not a reference for complete onboarding procedure for addons to OSD. full process of onboarding addons is outlined in the documentation [available here](https://gitlab.cee.redhat.com/service/managed-tenants/-/tree/master).
