@@ -211,6 +211,7 @@ The following can be passed to `osde2e` executable as environment variables.
   * 3 test environments: integration (int), staging (stage), and production (prod).
   * 3 providers: `rosa`, `gcp`, `aro`.  Each environment and each provider requires a separate prow job configuration.
   * Test suite for your addon tests should be `addon-suite`
+    
     The `CONFIGS` variable loads the config files defined in [osde2e](https://github.com/openshift/osde2e/tree/main/configs). The *test harness example* runs on `rosa` `stage` environment and executes `addon-suite`. If you want your job to run in a different environment, such as `int` or `prod`, or a different cloud provider, such as `gcp` or `aro`, you need to
     * (A) change the job `name` key to include the proper environment and provider *and*
     * (B) redefine the `CONFIGS` environment variable by replacing `rosa` and `stage` with the name of the appropriate provider and environment for your prow job.
