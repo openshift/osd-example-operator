@@ -119,7 +119,7 @@ Do not update keys with no comments next to them. For your job, do not copy from
       repo: osde2e
   labels:
     pj-rehearse.openshift.io/can-be-rehearsed: "false"
-  name: osde2e-rosa-stage-example-addon  // update to your job in the format: osde2e-<provider>-<environement>-<addon_name>-addon
+  name: osde2e-rosa-stage-example-addon  // update to your job in the format: osde2e-provider-environement-addon_name-addon
   spec:
     containers:
       - args:
@@ -213,7 +213,7 @@ The following can be passed to `osde2e` executable as environment variables.
   * Test suite for your addon tests should be `addon-suite`
     
     The `CONFIGS` variable loads the config files defined in [osde2e](https://github.com/openshift/osde2e/tree/main/configs). The *test harness example* runs on `rosa` `stage` environment and executes `addon-suite`. If you want your job to run in a different environment, such as `int` or `prod`, or a different cloud provider, such as `gcp` or `aro`, you need to
-    * (A) change the job `name` key to include the proper environment and provider (i.e. osde2e-<provider>-<environement>-<addon_name>-addon) *and*
+    * (A) change the job `name` key to include the proper environment and provider (i.e. `osde2e-<provider>-<environement>-<addon_name>-addon`) *and*
     * (B) redefine the `CONFIGS` environment variable by replacing `rosa` and `stage` with the name of the appropriate provider and environment for your prow job.
 
 
