@@ -10,8 +10,8 @@
     * [More on Secrets](#more-on-secrets)
         * [Passthrough Keys](#passthrough-keys)
   * [SKUs and Quota](#skus-and-quota)
-    * [Addon Cleanup](#addon-cleanup)
-    * [Slack Notifications](#slack-notifications)
+  * [Addon Cleanup](#addon-cleanup)
+  * [Slack Notifications](#slack-notifications)
   * [Querying results from Datahub](#querying-results-from-datahub)
 <!-- TOC -->
 # osde2e-example-test-harness
@@ -271,7 +271,7 @@ You need to open an MR to update the `SDCICD` org's quota so that it can provisi
 Please bump the quota for SKU `MW00530` by 2 so that we can provision additional CCS clusters for you!
 
 
-### Addon Cleanup
+## Addon Cleanup
 
 If your addon test creates or affects anything outside the OSD cluster lifecycle, a separate cleanup action is required. If `ADDON_RUN_CLEANUP` is set to `true`, OSDe2e will run your test harness container a **second time** passing the argument `cleanup` to the container (as the first command line argument).
 
@@ -283,7 +283,7 @@ There may be a case where a separate cleanup container/harness is required. That
 
 > *NOTE*: Your OSD clusters will automatically back themselves up to S3 in your AWS account. You can find these backups by running `aws s3 ls --profile osd`. You should probably clean them up as part of the cleanup phase of your build.
 
-### Slack Notifications
+## Slack Notifications
 
 If you want to be notified of the results of your builds in slack, you can take advantage of [this feature](https://docs.ci.openshift.org/docs/how-tos/notification/). [Here](https://github.com/openshift/release/pull/16674/files#diff-d214756a87b37f0ad838abce8ddfa8993c7cd6a7614fc15384f5f3e4307f079aR1983) is an example PR of someone configuring slack alerts for an Addon.
 
