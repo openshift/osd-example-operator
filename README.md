@@ -173,7 +173,7 @@ To adapt this to your job, you would redefine the values denoted with comments.
 
 ### Parameters ###
 
-The following can be passed to `osde2e` executable as environment variables: `ADDON_IDS`, `ADDON_TEST_HARNESSES`, `ADDON_TEST_USER`, and `ADDON_PARAMETERS`.
+The following can be passed to `osde2e` executable as environment variables.
 
 
 * `ADDON_TEST_USER`: The in-cluster user that the test harness containers will run as. Allows for a single wildcard (`%s`) which will automatically be evaluated as the namespace for the test harness.
