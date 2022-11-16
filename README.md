@@ -1,9 +1,8 @@
  <!-- TOC -->
 * [osde2e-example-test-harness](#osde2e-example-test-harness)
-* [Add-On Testing](#add-on-testing)
-  * [Designing e2e tests](#designing-e2e-tests)
+  * [Designing e2e Tests](#designing-e2e-tests)
   * [The Structure of an Addon Test](#the-structure-of-an-addon-test)
-  * [Locally Running Example Addon Test Harness](#locally-running-example-addon-test-harness)
+  * [Locally Running This Example](#locally-running-this-example)
   * [Configuring OSDe2e](#configuring-osde2e)
     * [Example Periodic Prow Job Config](#example-periodic-prow-job-config)
     * [Parameters](#parameters)
@@ -16,27 +15,28 @@
 <!-- TOC -->
 # osde2e-example-test-harness
 
-This respository is an example of a basic test harness. 
-It uses the Reference Addon as an example and demonstrates basic test assertions. It does the following:
+This respository is an example of a test harness. 
+Test harnesses are standalone test repositories executed by osde2e framework in prow jobs. 
+This example uses the Reference Addon as an example and demonstrates basic test assertions. 
+It does the following:
 
+* Contains source for example test-harness image published in: quay.io/rmundhe_oc/osde2e-example-test-harness
 * Uses *Reference Addon* as example
-* Tests for the existence of the addon CRD i.e., *referenceaddons.reference.addons.managed.openshift.io*. This should be present if the *reference-addon* has been installed properly.
-* Writes out a junit XML file with tests results to the `/test-run-results` directory as expected
+* Asserts the existence of the reference-addon CRD i.e., *referenceaddons.reference.addons.managed.openshift.io*. This should be present if the *reference-addon* has been installed properly.
+* When `osde2e` executes this harness, it writes out a junit XML file with tests results to the `/test-run-results` directory as expected
   by the [osde2e](https://github.com/openshift/osde2e)  test framework.
-* Writes out an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
+* And also writes an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
 
 You may use this exampe to create your own addon test harness.
 
-# Add-On Testing 
-This document describes the requirements to configure E2E testing of an Addon using osde2e framework. The addons integration (e2e) tests are not meant to replace any existing QE.
-
-Note: This document is not a reference for complete onboarding procedure for addons to OSD. full process of onboarding addons is outlined in the documentation [available here](https://gitlab.cee.redhat.com/service/managed-tenants/-/tree/master).
-
-## Designing e2e tests
+> The addons integration (e2e) tests are not meant to replace any existing QE.
+ This document is not a reference for complete onboarding procedure for addons to OSD. Full process of onboarding addons is outlined in the documentation [here](https://gitlab.cee.redhat.com/service/managed-tenants/-/tree/master).
+ 
+## Designing e2e Tests
 We recommend the following basic principles in designing your e2e tests:
  - Map existing functionality to e2e test cases
  - Map any bugs found into e2e test cases 
- - Update e2e test cases as functionality is changed or added to reflect it
+ - Update e2e test cases as addon functionality is changed or added 
  - Ensure the assertions and logs output by tests reflect 
    - the execution paths and 
    - potential causes of failures  
@@ -52,7 +52,7 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 *   Output metadata to `addon-metadata.json` in the `/test-run-results` directory.
 
 
-## Locally Running Example Addon Test Harness
+## Locally Running This Example 
 
 - create a stage rosa cluster
 - clone osde2e: `git clone git@github.com:openshift/osde2e.git`
@@ -63,8 +63,8 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 #!/usr/bin/env bash
 OCM_TOKEN="[OCM token here]" \ 
 CLUSTER_ID="[cluster id here]" \
-ADDON_IDS="[addon id here]" \ 
-ADDON_TEST_HARNESSES="[quay.io address here]" \
+ADDON_IDS="reference-addon" \ 
+ADDON_TEST_HARNESSES="quay.io/rmundhe_oc/osde2e-example-test-harness" \
 REPORT_DIR="[path to report directory]" \
 ROSA_ENV=stage \
 ./osde2e test --configs rosa,stage,addon-suite --must-gather false --destroy-cluster false --skip-health-check true
