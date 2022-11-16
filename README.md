@@ -219,7 +219,7 @@ The following can be passed to `osde2e` executable as environment variables.
 
 ### More on Secrets
 
-You'll need to provide some additional details about your AWS account in a secret. In particular, you'll need to provide these values in your credentials secret:
+For AWS or rosa clusters, you'll need to provide some additional details about your AWS account in a secret. In particular, you'll need to provide these values in your credentials secret:
 
 ```
 aws-account
