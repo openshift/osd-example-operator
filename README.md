@@ -3,7 +3,7 @@
   * [Designing e2e Tests](#designing-e2e-tests)
   * [The Structure of an Addon Test](#the-structure-of-an-addon-test)
   * [Locally Running This Example](#locally-running-this-example)
-  * [Locally Run Your Test Harness](#locally-run-your-test-harness)
+  * [Locally Running Your Test Harness](#locally-running-your-test-harness)
   * [Configuring OSDe2e](#configuring-osde2e)
     * [Example Periodic Prow Job Config](#example-periodic-prow-job-config)
     * [Parameters](#parameters)
@@ -86,7 +86,7 @@ Once the execution is complete, you can view the report in the defined `REPORT_D
 
 After the Test Harness has been validated to work as intended locally, this flow can be performed in a CI pipeline to test agaisnt OSD releases as described below.
 
-## Locally Run Your Test Harness
+## Locally Running Your Test Harness
 1. `ADDON_TEST_HARNESSES` image: 
    Build and push latest docker image i.e.
     ```bash
