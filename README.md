@@ -106,6 +106,8 @@ After the Test Harness has been validated to work as intended locally, this flow
 ### Example Periodic Prow Job Config
 Defined in release repo: https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/osde2e/openshift-osde2e-main-periodics.yaml#L158 
 
+Job on Prow: https://prow.ci.openshift.org/?job=osde2e-rosa-stage-example-addon 
+
 Comments denote brief instructions. To adapt this to your job, you would redefine the values denoted with comments.
 Do not update keys with no comments next to them. For your job, do not copy from here, use the git version linked above instead. `ci-operator` does not like comments in yamls. 
 ```yaml
