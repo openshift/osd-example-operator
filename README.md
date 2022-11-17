@@ -16,9 +16,9 @@
 <!-- TOC -->
 # osde2e-example-test-harness
 
-This respository is an example of a test harness. 
 Test harnesses are standalone ginkgo test images run on test pods on test clusters by osde2e framework in prow jobs. 
-This harness uses the Reference Addon as an example and demonstrates basic test assertions. 
+
+This respository is an example of a test harness.  It uses the Reference Addon as an example and demonstrates basic test assertions. 
 It does the following:
 
 * Contains source for example test-harness image published in: (quay.io/rmundhe_oc/osde2e-example-test-harness)
@@ -26,7 +26,7 @@ It does the following:
 * When `osde2e` test framework executes this harness, it writes out a junit XML file with tests results to the `/test-run-results` directory.
 * And an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
 
-You may use this exampe to create your own addon test harness.
+This doc explains how to execute these tests locally as well as how to create prow jobs to schedule a periodic pipeline. You may use this example to create your own addon test harness and prow jobs.
 
 > The addons integration (e2e) tests are not meant to replace any existing QE.
  This document is not a reference for complete onboarding procedure for addons to OSD. Full process of onboarding addons is outlined in the documentation [here](https://gitlab.cee.redhat.com/service/managed-tenants/-/tree/master).
