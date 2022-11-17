@@ -288,7 +288,7 @@ There may be a case where a separate cleanup container/harness is required. That
 
 ## Slack Notifications
 
-If you want to be notified of the results of your builds in slack, you can take advantage of [this feature](https://docs.ci.openshift.org/docs/how-tos/notification/). [Here](https://github.com/openshift/release/pull/16674/files#diff-d214756a87b37f0ad838abce8ddfa8993c7cd6a7614fc15384f5f3e4307f079aR1983) is an example PR of someone configuring slack alerts for an Addon.
+If you want to be notified of the results of your builds in slack, you can take advantage of [this feature](https://docs.ci.openshift.org/docs/how-tos/notification/). [Here](https://github.com/openshift/release/pull/16674/files#diff-d214756a87b37f0ad838abce8ddfa8993c7cd6a7614fc15384f5f3e4307f079aR1983) is an example PR for configuring slack alerts for an Addon.
 
 
 
