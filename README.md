@@ -21,7 +21,7 @@ This respository is an example of a test harness.  It uses the Reference Addon a
 It does the following:
 
 * Contains source for example test-harness image published in: (quay.io/rmundhe_oc/osde2e-example-test-harness)
-* Asserts the existence of the _reference-addon_ CRD i.e., *referenceaddons.reference.addons.managed.openshift.io*. This should be present if the *reference-addon* has been installed properly.
+* Asserts basic funcitonality of the addon and the test harness. e.g. existence of _reference-addon_ CRD  *referenceaddons.reference.addons.managed.openshift.io*.  
 * When `osde2e` test framework executes this harness, it writes out a junit XML file with tests results to the `/test-run-results` directory.
 * And an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
 
