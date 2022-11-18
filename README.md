@@ -1,6 +1,5 @@
  <!-- TOC -->
 * [osde2e-example-test-harness](#osde2e-example-test-harness)
-  * [Designing e2e Tests](#designing-e2e-tests)
   * [The Structure of an Addon Test](#the-structure-of-an-addon-test)
   * [Locally Running This Example](#locally-running-this-example)
   * [Locally Running Your Test Harness](#locally-running-your-test-harness)
@@ -31,16 +30,6 @@ This doc explains how to execute these tests locally as well as how to create pr
 > The addons integration (e2e) tests are not meant to replace any existing QE.
  This document is not a reference for complete onboarding procedure for addons to OSD. Full process of onboarding addons is outlined in the documentation [here](https://gitlab.cee.redhat.com/service/managed-tenants/-/tree/master).
  
-## Designing e2e Tests
-We recommend the following basic principles in designing your e2e tests:
- - Map existing functionality to e2e test cases
- - Map any bugs found into e2e test cases 
- - Update e2e test cases as addon functionality is changed or added 
- - Ensure the assertions and logs output by tests reflect 
-   - the execution paths and 
-   - potential causes of failures  
-   
-Kubernetes guide on the topic https://github.com/kubernetes/community/blob/master/contributors/devel/sig-testing/writing-good-e2e-tests.md 
 
 ## The Structure of an Addon Test
 
