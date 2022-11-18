@@ -22,9 +22,12 @@ It does the following:
 
 * Contains source for example test-harness image published in: (quay.io/rmundhe_oc/osde2e-example-test-harness)
 * Asserts basic funcitonality of the addon and the test harness. e.g. existence of _reference-addon_ CRD  *referenceaddons.reference.addons.managed.openshift.io*.  
-* When `osde2e` test framework executes this harness, it writes out a junit XML file with tests results to the `/test-run-results` directory.
-* And an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
 
+When `osde2e` test framework executes this harness, it writes out 
+1. a junit XML file with tests results to the `/test-run-results` directory to reflect test results, and
+2. `addon-metadata.json` file to be consumed by the osde2e framework
+
+ 
 This doc explains how to execute these tests locally as well as how to create prow jobs to schedule a periodic pipeline. You may use this example to create your own addon test harness and prow jobs.
 
 > The addons integration (e2e) tests are not meant to replace any existing QE.
