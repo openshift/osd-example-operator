@@ -39,6 +39,8 @@ We recommend the following basic principles in designing your e2e tests:
  - Ensure the assertions and logs output by tests reflect 
    - the execution paths and 
    - potential causes of failures  
+   
+Kubernetes guide on the topic https://github.com/kubernetes/community/blob/master/contributors/devel/sig-testing/writing-good-e2e-tests.md 
 
 ## The Structure of an Addon Test
 
