@@ -122,6 +122,13 @@ Do not update keys with no comments next to them. For your job, do not copy from
   labels:
     pj-rehearse.openshift.io/can-be-rehearsed: "false"
   name: osde2e-rosa-stage-example-addon  // update to your job in the format: osde2e-provider-environement-addon_name-addon
+  reporter_config:
+   slack:
+    channel: '#sd-cicd-alerts' // update to owner's channel.
+    job_states_to_report:
+      - failure
+      - error
+    report_template: 'Job {{.Spec.Job}} failed: {{.Status.URL}}'
   spec:
     containers:
       - args:
@@ -288,7 +295,17 @@ There may be a case where a separate cleanup container/harness is required. That
 
 ## Slack Notifications
 
-If you want to be notified of the results of your builds in slack, you can take advantage of [this feature](https://docs.ci.openshift.org/docs/how-tos/notification/). [Here](https://github.com/openshift/release/pull/16674/files#diff-d214756a87b37f0ad838abce8ddfa8993c7cd6a7614fc15384f5f3e4307f079aR1983) is an example PR for configuring slack alerts for an Addon.
+Slack is an important path of signal feedback for _osde2d_. Please replace your Slack channel for alerts in this related section from the example config:
+
+```yaml
+  reporter_config:
+    slack:
+      channel: '#sd-cicd-alerts' // update to owner's channel.
+      job_states_to_report:
+        - failure
+        - error
+      report_template: 'Job {{.Spec.Job}} failed: {{.Status.URL}}'
+```
 
 
 
