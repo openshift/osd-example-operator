@@ -1,6 +1,5 @@
  <!-- TOC -->
 * [osde2e-example-test-harness](#osde2e-example-test-harness)
-  * [Designing e2e Tests](#designing-e2e-tests)
   * [The Structure of an Addon Test](#the-structure-of-an-addon-test)
   * [Locally Running This Example](#locally-running-this-example)
   * [Locally Running Your Test Harness](#locally-running-your-test-harness)
@@ -22,23 +21,18 @@ This respository is an example of a test harness.  It uses the Reference Addon a
 It does the following:
 
 * Contains source for example test-harness image published in: (quay.io/rmundhe_oc/osde2e-example-test-harness)
-* Asserts the existence of the _reference-addon_ CRD i.e., *referenceaddons.reference.addons.managed.openshift.io*. This should be present if the *reference-addon* has been installed properly.
-* When `osde2e` test framework executes this harness, it writes out a junit XML file with tests results to the `/test-run-results` directory.
-* And an `addon-metadata.json` file which will also be consumed by the osde2e test framework.
+* Asserts basic funcitonality of the addon and the test harness. e.g. existence of _reference-addon_ CRD  *referenceaddons.reference.addons.managed.openshift.io*.  
 
+When `osde2e` test framework executes this harness, it writes out 
+1. a junit XML file with tests results to the `/test-run-results` directory to reflect test results, and
+2. `addon-metadata.json` file to be consumed by the osde2e framework
+
+ 
 This doc explains how to execute these tests locally as well as how to create prow jobs to schedule a periodic pipeline. You may use this example to create your own addon test harness and prow jobs.
 
 > The addons integration (e2e) tests are not meant to replace any existing QE.
  This document is not a reference for complete onboarding procedure for addons to OSD. Full process of onboarding addons is outlined in the documentation [here](https://gitlab.cee.redhat.com/service/managed-tenants/-/tree/master).
  
-## Designing e2e Tests
-We recommend the following basic principles in designing your e2e tests:
- - Map existing functionality to e2e test cases
- - Map any bugs found into e2e test cases 
- - Update e2e test cases as addon functionality is changed or added 
- - Ensure the assertions and logs output by tests reflect 
-   - the execution paths and 
-   - potential causes of failures  
 
 ## The Structure of an Addon Test
 
