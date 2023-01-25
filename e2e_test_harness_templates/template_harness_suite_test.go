@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package e2e_test_harness_templates
 
 import (
