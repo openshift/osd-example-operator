@@ -1,17 +1,16 @@
  <!-- TOC -->
-* [osde2e-example-test-harness](#osde2e-example-test-harness)
-  * [The Structure of an Addon Test](#the-structure-of-an-addon-test)
-  * [Locally Running This Example](#locally-running-this-example)
-  * [Locally Running Your Test Harness](#locally-running-your-test-harness)
-  * [Configuring OSDe2e](#configuring-osde2e)
-    * [Example Periodic Prow Job Config](#example-periodic-prow-job-config)
-    * [Parameters](#parameters)
-    * [More on Secrets](#more-on-secrets)
-        * [Passthrough Keys](#passthrough-keys)
-  * [SKUs and Quota](#skus-and-quota)
-  * [Addon Cleanup](#addon-cleanup)
-  * [Slack Notifications](#slack-notifications)
-  * [Querying results from Datahub](#querying-results-from-datahub)
+- [osde2e-example-test-harness](#osde2e-example-test-harness)
+  - [The Structure of an Addon Test](#the-structure-of-an-addon-test)
+  - [Locally Running This Example](#locally-running-this-example)
+  - [Locally Running Your Test Harness](#locally-running-your-test-harness)
+  - [Configuring OSDe2e](#configuring-osde2e)
+    - [Example Periodic Prow Job Config](#example-periodic-prow-job-config)
+    - [Parameters](#parameters)
+    - [More on Secrets](#more-on-secrets)
+        - [Passthrough Keys](#passthrough-keys)
+  - [SKUs and Quota](#skus-and-quota)
+  - [Addon Cleanup](#addon-cleanup)
+  - [Slack Notifications](#slack-notifications)
 <!-- TOC -->
 # osde2e-example-test-harness
 
@@ -301,27 +300,5 @@ Slack is an important path of signal feedback for _osde2d_. Please replace your 
       report_template: 'Job {{.Spec.Job}} failed: {{.Status.URL}}'
 ```
 
-
-
-## Querying results from Datahub
-
-Once your job has been running in prow, you will be able to programmatically query Thanos/Prometheus for job results. All OSDe2e data points stored within Thanos/Prometheus are prefixed with `cicd_`. Currently there are three primary metrics stored:
-
-```
-cicd_event{environment="int",event="InstallSuccessful",install_version="openshift-v4.2.0-0.nightly-2020-01-15-224532",job="periodic-ci-openshift-osde2e-master-e2e-int-4.2-4.2",monitor="datahub",upgrade_version="openshift-v4.2.0-0.nightly-2020-01-15-231532"}
-
-cicd_jUnitResult{environment="int",install_version="openshift-v4.2.0-0.nightly-2020-01-15-224532",job="periodic-ci-openshift-osde2e-master-e2e-int-4.2-4.2",monitor="datahub",phase="install",result="failed",suite="OSD e2e suite",testname="[OSD] Managed Velero Operator deployment should have all desired replicas ready",upgrade_version="openshift-v4.2.0-0.nightly-2020-01-15-231532"}
-
-cicd_metadata{cluster_id="1a2bc3",environment="int",install_version="openshift-v4.2.0-0.nightly-2020-01-15-224532",job="periodic-ci-openshift-osde2e-master-e2e-int-4.2-4.2",job_id="123",metadata_name="time-to-cluster-ready",monitor="datahub",phase="",upgrade_version="openshift-v4.2.0-0.nightly-2020-01-15-231532"}
-
-cicd_addon_metadata{cluster_id="1a2bc3",environment="int",install_version="openshift-v4.2.0-0.nightly-2020-01-15-224532",job="periodic-ci-openshift-osde2e-master-e2e-int-4.2-4.2",job_id="123",metadata_name="time-to-cluster-ready",monitor="datahub",phase="",upgrade_version="openshift-v4.2.0-0.nightly-2020-01-15-231532"}
-```
-
-In addition to programmatically gating your addon releases, you can also use the [Grafana instance] hosted by DataHub to build out a dashboard and alerting to monitor the health of the addon as versions change.
-
- 
- 
- 
 [Managing Organization Quota]:https://gitlab.cee.redhat.com/service/ocm-resources/blob/master/docs/quota.md
 [https://cloud.redhat.com/openshift/token]:https://cloud.redhat.com/openshift/token
-[Grafana instance]:https://grafana.datahub.redhat.com/
