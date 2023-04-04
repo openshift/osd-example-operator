@@ -24,7 +24,7 @@ It does the following:
 
 When `osde2e` test framework executes this harness, it writes out 
 1. a junit XML file with tests results to the `/test-run-results` directory to reflect test results, and
-2. `addon-metadata.json` file to be consumed by the osde2e framework
+2. `test-harness-metadata.json` file to be consumed by the osde2e framework
 
  
 This doc explains how to execute these tests locally as well as how to create prow jobs to schedule a periodic pipeline. You may use this example to create your own addon test harness and prow jobs.
@@ -41,7 +41,7 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 *   Assume the pod will inherit `cluster-admin` rights.
 *	Block until your addon is ready to be tested (we will launch your container after requesting installation of the addon, but we can't control when the addon is finished installing).
 *   Output a valid `junit.xml` file to the `/test-run-results` directory before the container exits.
-*   Output metadata to `addon-metadata.json` in the `/test-run-results` directory.
+*   Output metadata to `test-harness-metadata.json` in the `/test-run-results` directory.
 
 
 ## Locally Running This Example 
@@ -57,11 +57,11 @@ How an add-on is tested can vary between groups and projects. In light of this, 
   OCM_TOKEN="[OCM token here]" \ 
   CLUSTER_ID="[cluster id here]" \
   ADDON_IDS="reference-addon" \ 
-  ADDON_TEST_HARNESSES="quay.io/rmundhe_oc/osde2e-example-test-harness" \
+  TEST_HARNESSES="quay.io/rmundhe_oc/osde2e-example-test-harness" \
   REPORT_DIR="[path to report directory]" \
   ROSA_ENV=stage \
   ./osde2e test \
-  --configs rosa,stage,addon-suite \
+  --configs rosa,stage,test-harness \
   --must-gather false \
   --destroy-cluster false \
   --skip-health-check true
@@ -79,14 +79,14 @@ Once the execution is complete, you can view the report in the defined `REPORT_D
 After the Test Harness has been validated to work as intended locally, this flow can be performed in a CI pipeline to test agaisnt OSD releases as described below.
 
 ## Locally Running Your Test Harness
-1. Create `ADDON_TEST_HARNESSES` image: 
+1. Create `TEST_HARNESSES` image: 
    Build and push latest docker image i.e.
     ```bash
     sudo docker build . -t quay.io/<-- your test harness image-->
     sudo docker push quay.io/<--your test harness image-->
     ``` 
-   Use this test image as the `ADDON_TEST_HARNESSES` in the next steps.
-2. Follow the steps in the [example above](#locally-running-this-example). Remember to change `ADDON_TEST_HARNESSES` as well as `ADDON_IDS` to your addon. 
+   Use this test image as the `TEST_HARNESSES` in the next steps.
+2. Follow the steps in the [example above](#locally-running-this-example). Remember to change `TEST_HARNESSES` as well as `ADDON_IDS` to your addon. 
  
 ## Configuring OSDe2e
 
@@ -135,12 +135,14 @@ Do not update keys with no comments next to them. For your job, do not copy from
         env:
           - name: ADDON_IDS
             value: reference-addon // update to your addons
-          - name: ADDON_TEST_HARNESSES
+          - name: TEST_HARNESSES
             value: quay.io/rmundhe_oc/osde2e-example-test-harness // update to your test harness image
           - name: CHANNEL
             value: stable
           - name: CONFIGS
-            value: rosa,stage,addon-suite // update to your provider, environment, leave the suite config as is
+            value: rosa,stage,test-harness // update to your provider, environment, leave the suite config as is
+          - name: POLLING_TIMEOUT
+            value: 7200 // in seconds; default is 300 
           - name: ROSA_AWS_REGION
             value: random // update or remove
           - name: ROSA_ENV
@@ -194,7 +196,7 @@ The following can be passed to `osde2e` executable as environment variables.
       - name: ADDON_IDS
         value: managed-api-service
   ```
-* `ADDON_TEST_HARNESSES`: Comma delimited list of docker images to run within the test namespace.
+* `TEST_HARNESSES`: Comma delimited list of docker images to run within the test namespace.
 * `ADDON_PARAMETERS` allows you to pass parameters to your addon. The format is a two-level JSON object. The outer object's keys are the IDs of addons, and the inner objects are key-value pairs that will be passed to the associated addon. e.g.
   ```yaml
     - name: ADDON_PARAMETERS
@@ -212,9 +214,9 @@ The following can be passed to `osde2e` executable as environment variables.
 * `CONFIG`: Select environment, cloud provider and test suite. We have
   * 3 test environments: integration (int), staging (stage), and production (prod).
   * 3 providers: `rosa`, `gcp`, `aro`.  Each environment and each provider requires a separate prow job configuration.
-  * Test suite for your addon tests should be `addon-suite`
+  * Test config for your addon tests should be `test-harness`
     
-    The `CONFIGS` variable loads the config files defined in [osde2e](https://github.com/openshift/osde2e/tree/main/configs). The *test harness example* runs on `rosa` `stage` environment and executes `addon-suite`. If you want your job to run in a different environment, such as `int` or `prod`, or a different cloud provider, such as `gcp` or `aro`, you need to
+    The `CONFIGS` variable loads the config files defined in [osde2e](https://github.com/openshift/osde2e/tree/main/configs). The *test harness example* runs on `rosa` `stage` environment and executes `test-harness`. If you want your job to run in a different environment, such as `int` or `prod`, or a different cloud provider, such as `gcp` or `aro`, you need to
     * (A) change the job `name` key to include the proper environment and provider (i.e. `osde2e-<provider>-<environement>-<addon_name>-addon`) *and*
     * (B) redefine the `CONFIGS` environment variable by replacing `rosa` and `stage` with the name of the appropriate provider and environment for your prow job.
 
@@ -278,9 +280,9 @@ Please bump the quota for SKU `MW00530` by 2 so that we can provision additional
 
 If your addon test creates or affects anything outside the OSD cluster lifecycle, a separate cleanup action is required. If `ADDON_RUN_CLEANUP` is set to `true`, OSDe2e will run your test harness container a **second time** passing the argument `cleanup` to the container (as the first command line argument).
 
-There may be a case where a separate cleanup container/harness is required. That may be configured using the `ADDON_CLEANUP_HARNESSES` config option. It is formatted in the same way as `ADDON_TEST_HARNESSES`. This however, may cause some confusion as to what is run when:
+There may be a case where a separate cleanup container/harness is required. That may be configured using the `ADDON_CLEANUP_HARNESSES` config option. It is formatted in the same way as `TEST_HARNESSES`. This however, may cause some confusion as to what is run when:
 
-`ADDON_RUN_CLEANUP` is true, and `ADDON_CLEANUP_HARNESSES` is not set, OSDe2e will only run `ADDON_TEST_HARNESSES` again, passing the `cleanup` argument.
+`ADDON_RUN_CLEANUP` is true, and `ADDON_CLEANUP_HARNESSES` is not set, OSDe2e will only run `TEST_HARNESSES` again, passing the `cleanup` argument.
 
 `ADDON_RUN_CLEANUP` is true, and `ADDON_CLEANUP_HARNESSES` is set, OSDe2e will only run the `ADDON_CLEANUP_HARNESSES`, passing no arguments.
 
