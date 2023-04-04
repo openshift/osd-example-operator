@@ -142,6 +142,8 @@ Do not update keys with no comments next to them. For your job, do not copy from
             value: stable
           - name: CONFIGS
             value: rosa,stage,test-harness // update to your provider, environment, leave the suite config as is
+          - name: POLLING_TIMEOUT
+            value: 7200 // in seconds; default is 300 
           - name: ROSA_AWS_REGION
             value: random // update or remove
           - name: ROSA_ENV
