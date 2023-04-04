@@ -25,7 +25,7 @@ It does the following:
 
 When `osde2e` test framework executes this harness, it writes out 
 1. a junit XML file with tests results to the `/test-run-results` directory to reflect test results, and
-2. `addon-metadata.json` file to be consumed by the osde2e framework
+2. `test-harness-metadata.json` file to be consumed by the osde2e framework
 
  
 This doc explains how to execute these tests locally as well as how to create prow jobs to schedule a periodic pipeline. You may use this example to create your own addon test harness and prow jobs.
@@ -42,7 +42,7 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 *   Assume the pod will inherit `cluster-admin` rights.
 *	Block until your addon is ready to be tested (we will launch your container after requesting installation of the addon, but we can't control when the addon is finished installing).
 *   Output a valid `junit.xml` file to the `/test-run-results` directory before the container exits.
-*   Output metadata to `addon-metadata.json` in the `/test-run-results` directory.
+*   Output metadata to `test-harness-metadata.json` in the `/test-run-results` directory.
 
 
 ## Locally Running This Example 
