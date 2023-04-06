@@ -41,7 +41,7 @@ var _ = ginkgo.Describe("Example Addon Tests", func() {
 		}
 
 		Expect(err).NotTo(HaveOccurred())
-	}, float64(30))
+	})
 
 	ginkgo.It("Example passthrough secret exists", func() {
 		k8s, err := kubernetes.NewForConfig(config)
@@ -51,6 +51,6 @@ var _ = ginkgo.Describe("Example Addon Tests", func() {
 		Expect(sec.Data["testkey"]).ToNot(BeNil())
 		Expect(err).NotTo(HaveOccurred())
 
-	}, float64(30))
+	})
 
 })
