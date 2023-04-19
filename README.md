@@ -50,7 +50,13 @@ How an add-on is tested can vary between groups and projects. In light of this, 
 2. Install your addon/s on it
 3. Clone osde2e: `git clone git@github.com:openshift/osde2e.git`
 4. Build osde2e executable: `make build`
-5. Run osde2e as follows
+5. Create example secret for tests to consume
+  ```bash
+  mkdir -p secrets
+  echo "example-secret" > secrets/testkey
+  ```
+
+6. Run osde2e as follows
 
   ```bash
   #!/usr/bin/env bash
@@ -62,14 +68,15 @@ How an add-on is tested can vary between groups and projects. In light of this, 
   ROSA_ENV=stage \
   ./osde2e test \
   --configs rosa,stage,test-harness \
+  --secret-locations secrets \
   --must-gather false \
-  --destroy-cluster false \
+  --skip-destroy-cluster \
   --skip-health-check true
   ```
  
   **Arguments:** 
   - The `--configs` arg here maps to `$CONFIGS` environment var in the prow config, see description in [parameters](#parameters) section. 
-  - `--destroy-cluster`, `--skip-health-check` and `--must-gather` help shorten the time consumed by the test to run locally. 
+  - `--skip-destroy-cluster`, `--skip-health-check` and `--must-gather` help shorten the time consumed by the test to run locally. 
 
   **Environment variables:**
   - See [parameters](#parameters) section for description of environment variables used. 
