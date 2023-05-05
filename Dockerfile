@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/openshift/release:golang-1.16 AS builder
+FROM registry.ci.openshift.org/openshift/release:golang-1.19 AS builder
 
 ENV PKG=/go/src/github.com/openshift/osde2e-example-test-harness/
 WORKDIR ${PKG}
@@ -7,7 +7,7 @@ WORKDIR ${PKG}
 COPY . .
 RUN make
 
-FROM registry.access.redhat.com/ubi7/ubi-minimal:latest
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
 COPY --from=builder /go/src/github.com/openshift/osde2e-example-test-harness/osde2e-example-test-harness.test osde2e-example-test-harness.test
 

@@ -7,6 +7,6 @@ build:
 	CGO_ENABLED=0 go test -v -c
 
 lint:
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.46.2
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin
 	(cd "$(DIR)"; golangci-lint run -c .ci-operator.yaml ./...)
 
