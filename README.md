@@ -16,6 +16,8 @@
 
 Test harnesses are standalone ginkgo test images run on test pods on test clusters by osde2e framework in prow jobs. 
 
+[ NOTE: While this document was written to assist addon authors to write test harnesses, note that this can be used by any test harness image, regardless of the component type tested. In case of a non-addon component, create the harness image as described below, and to execute, simply skip the ADDON_IDS environment variable. ]
+
 This respository is an example of a test harness.  It uses the Reference Addon as an example and demonstrates basic test assertions. 
 It does the following:
 
@@ -31,7 +33,7 @@ This doc explains how to execute these tests locally as well as how to create pr
 
 > The addons integration (e2e) tests are not meant to replace any existing QE.
  This document is not a reference for complete onboarding procedure for addons to OSD. Full process of onboarding addons is outlined in the documentation [here](https://gitlab.cee.redhat.com/service/managed-tenants/-/tree/master).
- 
+
 
 ## The Structure of an Addon Test
 
@@ -65,18 +67,17 @@ How an add-on is tested can vary between groups and projects. In light of this, 
   ADDON_IDS="reference-addon" \ 
   TEST_HARNESSES="quay.io/rmundhe_oc/osde2e-example-test-harness" \
   REPORT_DIR="[path to report directory]" \
-  ROSA_ENV=stage \
   ./osde2e test \
-  --configs rosa,stage,test-harness \
+  --configs rosa,stage,sts,test-harness \
   --secret-locations secrets \
-  --must-gather false \
+  --skip-must-gather \
   --skip-destroy-cluster \
-  --skip-health-check true
+  --skip-health-check 
   ```
  
   **Arguments:** 
   - The `--configs` arg here maps to `$CONFIGS` environment var in the prow config, see description in [parameters](#parameters) section. 
-  - `--skip-destroy-cluster`, `--skip-health-check` and `--must-gather` help shorten the time consumed by the test to run locally. 
+  - `--skip-destroy-cluster`, `--skip-health-check` and `--skip-must-gather` help shorten the time consumed by the test to run locally. 
 
   **Environment variables:**
   - See [parameters](#parameters) section for description of environment variables used. 
@@ -223,8 +224,8 @@ The following can be passed to `osde2e` executable as environment variables.
   * 3 providers: `rosa`, `gcp`, `aro`.  Each environment and each provider requires a separate prow job configuration.
   * Test config for your addon tests should be `test-harness`
     
-    The `CONFIGS` variable loads the config files defined in [osde2e](https://github.com/openshift/osde2e/tree/main/configs). The *test harness example* runs on `rosa` `stage` environment and executes `test-harness`. If you want your job to run in a different environment, such as `int` or `prod`, or a different cloud provider, such as `gcp` or `aro`, you need to
-    * (A) change the job `name` key to include the proper environment and provider (i.e. `osde2e-<provider>-<environement>-<addon_name>-addon`) *and*
+    The `CONFIGS` variable loads the config files defined in [osde2e](https://github.com/openshift/osde2e/tree/main/configs). The *test harness example* runs on `rosa` `stage` environment with `sts` enabled, and executes `test-harness`. If you want your job to run in a different environment, such as `int` or `prod`, or a different cloud provider, such as `gcp` or `aro`, you need to
+    * (A) change the prow job `name` key to include the proper environment and provider (i.e. `osde2e-<provider>-<environement>-<addon_name>-addon`) *and*
     * (B) redefine the `CONFIGS` environment variable by replacing `rosa` and `stage` with the name of the appropriate provider and environment for your prow job.
 
 
