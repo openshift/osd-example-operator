@@ -1,4 +1,5 @@
 # Example operator test harness 
 
-test merge
+test merge 
+1
  
