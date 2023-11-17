@@ -1,4 +1,4 @@
 # Example operator test harness 
 
 test merge 
-6
+7
