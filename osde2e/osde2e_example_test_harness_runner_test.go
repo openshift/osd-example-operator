@@ -7,7 +7,6 @@ package osde2etests
 import (
 	"path/filepath"
 	"testing"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -18,11 +17,12 @@ const (
 )
 
 // Test entrypoint. osde2e runs this as a test suite on test pod.
-func TestReferenceOperator(t *testing.T) {
+func TestOsde2eExampleTestHarness(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	suiteConfig, reporterConfig := GinkgoConfiguration()
 	reporterConfig.JUnitReport = filepath.Join(testResultsDirectory, jUnitOutputFilename)
-	RunSpecs(t, "Osde2e example test harness", suiteConfig, reporterConfig)
+	RunSpecs(t, "Osde2e Example Test Harness", suiteConfig, reporterConfig)
 
 }
+
