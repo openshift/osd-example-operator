@@ -5,12 +5,16 @@
 package osde2etests
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
 
 var _ = ginkgo.Describe("osde2e-example-test-harness", func() {
 	ginkgo.It("Makes simple assertion", func() {
+		fmt.Printf("timeout provided %s", os.Getenv("HARNESS_TIMEOUT"))
 		gomega.Expect(1).Should(gomega.Equal(1), "one should equal one")
 	})
 
