@@ -30,7 +30,5 @@ saasfile.yaml
 *.swo
 *~
 .vscode
-
-
 .venv
-.yml
+.github
