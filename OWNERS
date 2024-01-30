@@ -1,9 +1,10 @@
-approvers:
-- MrSantamaria
-- dustman9000
-- ritmun
 reviewers:
 - MrSantamaria
 - dustman9000
 - ritmun
 - yiqinzhang
+approvers:
+- MrSantamaria
+- dustman9000
+- mmazur
+- ritmun
