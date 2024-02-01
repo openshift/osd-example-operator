@@ -1,16 +1,16 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: osde2e-example-test-harness-0.0.1
+  name: osd-example-operator-0.0.1
   namespace: placeholder
   annotations:
     categories: A list of comma separated categories that your operator falls under.
     certified: "false"
     description: Example operator e2e test harness
-    containerImage: quay.io/app-sre/osde2e-example-test-harness:latest
+    containerImage: quay.io/app-sre/osd-example-operator:latest
     support: Osde2e
 spec:
-  displayName: osde2e-example-test-harness
+  displayName: osd-example-operator
   description: Example operator e2e test harness 
   keywords:
     - operator-sdk

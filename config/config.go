@@ -2,6 +2,6 @@
 package config
 
 const (
-	OperatorName      string = "osde2e-example-test-harness"
-	OperatorNamespace string = "openshift-osde2e-example-test-harness"
+	OperatorName      string = "osd-example-operator"
+	OperatorNamespace string = "openshift-osd-example-operator"
 )

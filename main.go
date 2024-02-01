@@ -25,5 +25,5 @@ var (
 )
 
 func main() {
-	setupLog.Info("Hello from example test harness operator")
+	setupLog.Info("Hello from example operator")
 }

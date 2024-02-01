@@ -1,4 +1,4 @@
-module github.com/openshift/osde2e-example-test-harness
+module github.com/openshift/osd-example-operator
 
 go 1.19
 
