@@ -29,7 +29,7 @@ objects:
   - apiVersion: batch/v1
     kind: Job
     metadata:
-      name: osde2e-osde2e-example-test-harness-${IMAGE_TAG}-${JOBID}
+      name: osde2e-osd-example-operator-${IMAGE_TAG}-${JOBID}
     spec:
       backoffLimit: 0
       template:
@@ -63,6 +63,4 @@ objects:
                 - name: AWS_REGION
                   value: ${AWS_REGION}
                 - name: LOG_BUCKET
-                  value: ${LOG_BUCKET}     
-                - name: HARNESS_TIMEOUT
-                  value: ${HARNESS_TIMEOUT}                         
+                  value: ${LOG_BUCKET}                 

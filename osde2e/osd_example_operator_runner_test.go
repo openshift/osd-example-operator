@@ -13,16 +13,16 @@ import (
 
 const (
 	testResultsDirectory = "/test-run-results"
-	jUnitOutputFilename  = "junit-osde2e-example-test-harness.xml"
+	jUnitOutputFilename  = "junit-osd-example-operator.xml"
 )
 
 // Test entrypoint. osde2e runs this as a test suite on test pod.
-func TestOsde2eExampleTestHarness(t *testing.T) {
+func TestOsdExampleOperator(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	suiteConfig, reporterConfig := GinkgoConfiguration()
 	reporterConfig.JUnitReport = filepath.Join(testResultsDirectory, jUnitOutputFilename)
-	RunSpecs(t, "Osde2e Example Test Harness", suiteConfig, reporterConfig)
+	RunSpecs(t, "Osd Example Operator", suiteConfig, reporterConfig)
 
 }
 

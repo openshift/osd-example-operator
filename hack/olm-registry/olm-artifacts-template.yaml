@@ -8,11 +8,11 @@ parameters:
 - name: IMAGE_DIGEST
   required: true
 - name: NAMESPACE
-  value: openshift-osde2e-example-test-harness
+  value: openshift-osd-example-operator
 - name: REGISTRY_IMG
   required: true
 - name: REPO_NAME
-  value: osde2e-example-test-harness
+  value: osd-example-operator
   required: true
 metadata:
   name: selectorsyncset-template
@@ -24,7 +24,7 @@ objects:
       managed.openshift.io/gitHash: ${IMAGE_TAG}
       managed.openshift.io/gitRepoName: ${REPO_NAME}
       managed.openshift.io/osd: 'true'
-    name: osde2e-example-test-harness
+    name: osd-example-operator
   spec:
     clusterDeploymentSelector:
       matchLabels:
