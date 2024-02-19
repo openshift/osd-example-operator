@@ -22,3 +22,7 @@ linters:
     - staticcheck
     - typecheck
     - whitespace
+promotion:
+  to:
+  - namespace: ocp
+    name: 4.17
