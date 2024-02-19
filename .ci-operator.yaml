@@ -2,19 +2,3 @@ build_root_image:
   name: boilerplate
   namespace: openshift
   tag: image-v5.0.0
-linters-settings:
-  nolintlint:
-    require-explanation: false # don't require an explanation for nolint directives
-    require-specific: false # don't require nolint directives to be specific about which linter is being skipped
-linters:
-  disable-all: true
-  enable:
-  - gocyclo
-  - govet
-  - ineffassign
-  - misspell
-  - unused
-  - gofumpt
-  - ginkgolinter
-  - goconst
-  - whitespace
