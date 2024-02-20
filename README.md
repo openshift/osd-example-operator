@@ -1,5 +1,8 @@
 # osd-example-operator
 
+This repository serves as a test bed for the SD-CICD team to build tooling and
+support operators with minimal impact on other teams.
+
 ## Complete SOP on operator test harness
 
 https://github.com/openshift/ops-sop/blob/master/v4/howto/osde2e/operator-test-harnesses.md
