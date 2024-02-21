@@ -1,0 +1,47 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: osd-example-operator-0.0.1
+  namespace: placeholder
+  annotations:
+    categories: A list of comma separated categories that your operator falls under.
+    certified: "false"
+    description: Example operator e2e test harness
+    containerImage: quay.io/app-sre/osd-example-operator:latest
+    support: Osde2e
+spec:
+  displayName: osd-example-operator
+  description: Example operator e2e test harness 
+  keywords:
+    - operator-sdk
+    - golang
+    - osde2e
+    - node
+    - openshift-dedicated
+    - openshift
+    - redhat
+  version: 0.0.1
+  provider:
+    name: Red Hat, Inc
+  maturity: alpha
+  installModes:
+    - type: OwnNamespace
+      supported: true
+    - type: SingleNamespace
+      supported: true
+    - type: MultiNamespace
+      supported: false
+    - type: AllNamespaces
+      supported: false
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+        - serviceAccountName: testoperator
+          # Rules will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+      deployments:
+        - name: testoperator
+          # Deployment spec will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+  customresourcedefinitions:
+    owned:
+    # CRD's will be added here by boilerplate/openshift/golang-osd-operator/csv-generate

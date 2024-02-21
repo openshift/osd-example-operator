@@ -1,24 +1,4 @@
-linters-settings:
-  goimports:
-    local-prefixes: github.com/openshift/osde2e-example-test-harness
-  nolintlint:
-    require-explanation: false # don't require an explanation for nolint directives
-    require-specific: false # don't require nolint directives to be specific about which linter is being skipped
-linters:
-  disable-all: true
-  enable:
-    - bodyclose
-    - dogsled
-    - dupl
-    - errcheck
-    - exportloopref
-    - goconst
-    - gocritic
-    - gofmt
-    - ineffassign
-    - nakedret
-    - noctx
-    - nolintlint
-    - staticcheck
-    - typecheck
-    - whitespace
+build_root_image:
+  name: boilerplate
+  namespace: openshift
+  tag: image-v5.0.0
