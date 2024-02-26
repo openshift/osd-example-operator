@@ -29,7 +29,7 @@ objects:
     clusterDeploymentSelector:
       matchLabels:
         osde2eInactive: 'true'
-    resourceApplyMode: Sync
+    resourceApplyMode: Upsert
     resources:
     - apiVersion: v1
       kind: Namespace
