@@ -28,7 +28,7 @@ objects:
   spec:
     clusterDeploymentSelector:
       matchLabels:
-        osde2eInactive: 'true'
+        api.openshift.com/name: osde2e-example-1
     resourceApplyMode: Upsert
     resources:
     - apiVersion: v1
