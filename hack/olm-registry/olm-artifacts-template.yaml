@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: template.openshift.io/v1
 kind: Template
 parameters:
 - name: CHANNEL
@@ -28,8 +28,8 @@ objects:
   spec:
     clusterDeploymentSelector:
       matchLabels:
-        osde2eInactive: 'true'
-    resourceApplyMode: Sync
+        api.openshift.com/name: osde2e-example-1
+    resourceApplyMode: Upsert
     resources:
     - apiVersion: v1
       kind: Namespace
