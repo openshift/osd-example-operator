@@ -58,4 +58,4 @@ OCM_ENVIRONMENT=stage KUBECONFIG=/<path-to>/kubeconfig  ./<path-to>/bin/ginkgo  
 
 ---
 
-testing merge commits
+testing merge commit
