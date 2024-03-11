@@ -7,7 +7,6 @@ support operators with minimal impact on other teams.
 
 https://github.com/openshift/ops-sop/blob/master/v4/howto/osde2e/operator-test-harnesses.md
 
-
 ## Locally Running Test Harness
 - Run `make e2e-harness-build`  to make sure harness builds ok
 - Deploy your new version of operator in a test cluster
