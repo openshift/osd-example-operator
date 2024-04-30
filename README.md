@@ -54,8 +54,3 @@ OCM_ENVIRONMENT=stage KUBECONFIG=/<path-to>/kubeconfig  ./<path-to>/bin/ginkgo  
   --skip-must-gather \
   --skip-destroy-cluster \
   --skip-health-check 
-
-
----
-
-testing merge commit
