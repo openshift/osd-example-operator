@@ -1,3 +1,4 @@
+# DO NOT EDIT!!!!
 apiVersion: template.openshift.io/v1
 kind: Template
 parameters:
@@ -28,7 +29,7 @@ objects:
   spec:
     clusterDeploymentSelector:
       matchLabels:
-        api.openshift.com/name: osde2e-example-1
+        api.openshift.com/name: osd-example-1
     resourceApplyMode: Upsert
     resources:
     - apiVersion: v1
