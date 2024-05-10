@@ -2,6 +2,7 @@
 package config
 
 const (
-	OperatorName      string = "osd-example-operator"
-	OperatorNamespace string = "openshift-osd-example-operator"
+	OperatorName       string = "osd-example-operator"
+	OperatorNamespace  string = "openshift-osd-example-operator"
+	EnableOLMSkipRange string = "true"
 )
