@@ -323,6 +323,7 @@ coverage:
 # TODO: Boilerplate this script.
 .PHONY: build-push
 build-push:
+	OPERATOR_VERSION="${OPERATOR_VERSION}" \
 	${CONVENTION_DIR}/app-sre-build-deploy.sh ${REGISTRY_IMAGE} ${CURRENT_COMMIT} "$$IMAGES_TO_BUILD"
 
 .PHONY: opm-build-push
@@ -386,5 +387,5 @@ rvmo-bundle:
 	OPERATOR_NAME=$(OPERATOR_NAME) \
 	OPERATOR_VERSION=$(OPERATOR_VERSION) \
 	OPERATOR_OLM_REGISTRY_IMAGE=$(REGISTRY_IMAGE) \
-	TEMPLATE_FILE=$(abspath hack/olm-registry/olm-artifacts-template.yaml) \
+	TEMPLATE_FILE=$(abspath hack/artifacts/olm-artifacts-template.gotmpl) \
 	bash ${CONVENTION_DIR}/rvmo-bundle.sh
