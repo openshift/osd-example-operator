@@ -1,0 +1,14 @@
+---
+schema: olm.package
+name: osd-example-operator
+defaultChannel: stable
+---
+entries:
+  - name: osd-example-operator.v4.16.151-52864e5
+    skipRange: '>=0.0.1 <4.16.151-52864e5'
+name: stable
+package: osd-example-operator
+schema: olm.channel
+---
+schema: olm.bundle
+image: "quay.io/app-sre/osd-example-operator-registry:v4.16.151-52864e5"
