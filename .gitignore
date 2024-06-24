@@ -10,7 +10,6 @@ bin
 .envrc
 
 # OLM Bundle and temp files
-bundle
 saas-managed-node-metadata-operator-bundle
 saasfile.yaml
 
