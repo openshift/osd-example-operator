@@ -17,3 +17,11 @@ LABEL operators.operatorframework.io.metrics.project_layout=unknown
 # Copy files to locations specified by labels.
 COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/manifests /manifests/
 COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/metadata /metadata/
+
+LABEL name="osd-example-operator"
+LABEL description="Example operator used for testing in Service Delivery"
+LABEL summary="sample operator configured similarly to production SD operators used for testing"
+LABEL com.redhat.component="osd-example-operator"
+LABEL io.k8s.description="osd-example-operator"
+LABEL io.k8s.display-name="osd-example-operator"
+LABEL io.openshift.tags="data,images"
