@@ -19,6 +19,11 @@ COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/man
 COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/metadata /metadata/
 
 LABEL name="osd-example-operator"
+LABEL distribution-scope="public"
+LABEL release="0.0.1"
+LABEL version="0.0.1"
+LABEL url="https://github.com/openshift/osd-example-operator"
+LABEL vendor="Red Hat, Inc."
 LABEL description="Example operator used for testing in Service Delivery"
 LABEL summary="sample operator configured similarly to production SD operators used for testing"
 LABEL com.redhat.component="osd-example-operator"
