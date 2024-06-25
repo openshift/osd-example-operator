@@ -5,8 +5,8 @@ set -e
 REPOSITORY=${REPOSITORY:-"https://github.com/openshift/managed-release-bundle-osd.git"}
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD|egrep '^main$|^release-[0-9]+\.[0-9]+$')
 RVMO_BRANCH=${CURRENT_BRANCH:-main}
-# You can override any branch detection by setting GIT_LOCAL_BRANCH
-BRANCH=${GIT_LOCAL_BRANCH:-$RVMO_BRANCH}
+# You can override any branch detection by setting RELEASE_BRANCH
+BRANCH=${RELEASE_BRANCH:-$RVMO_BRANCH}
 DELETE_TEMP_DIR=${DELETE_TEMP_DIR:-true}
 TMPD=$(mktemp -d --suffix -rvmo-bundle)
 [[ "${DELETE_TEMP_DIR}" == "true" ]] && trap 'rm -rf ${TMPD}' EXIT
