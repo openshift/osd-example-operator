@@ -1,4 +1,4 @@
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.22 as builder
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 WORKDIR /go/src/github.com/openshift/osd-example-operator
 COPY . .
 
