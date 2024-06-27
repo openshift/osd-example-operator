@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest as builder
 WORKDIR /go/src/github.com/openshift/osd-example-operator
 COPY . .
 
