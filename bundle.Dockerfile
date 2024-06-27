@@ -2,7 +2,7 @@ FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.22 as bui
 WORKDIR /go/src/github.com/openshift/osd-example-operator
 COPY . .
 
-ARG OPERATOR_IMAGE_BUILD=quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/osd-example-operator-build:84e8a4412ec6850e43b630bd70d8812b848e62d1
+ARG OPERATOR_IMAGE_BUILD=quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/osd-example-operator-main:984b1166b02cf01659105b0aee43ec5d74036348
 RUN make update-bundle
 
 FROM scratch
