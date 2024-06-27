@@ -12,6 +12,9 @@ RUN go mod download
 COPY main.go main.go
 COPY controllers/ controllers/
 
+# Copy the license
+COPY LICENSE LICENSE
+
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -mod=mod -a -o manager main.go
 
@@ -21,5 +24,8 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-896.1716497715
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER nonroot:nonroot
+
+RUN mkdir /licenses
+COPY --from=builder /workspace/LICENSE /licenses/.
 
 ENTRYPOINT ["/manager"]
