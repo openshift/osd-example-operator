@@ -25,6 +25,10 @@ spec:
     value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/osd-example-operator-main:{{revision}}
   - name: dockerfile
     value: build/Dockerfile
+  - name: prefetch-input
+    value: gomod
+  - name: build-source-image
+    value: 'true'
   pipelineSpec:
     finally:
     - name: show-sbom
