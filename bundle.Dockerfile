@@ -1,6 +1,9 @@
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest as builder
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.22 as builder
 WORKDIR /go/src/github.com/openshift/osd-example-operator
 COPY . .
+
+ARG OPERATOR_IMAGE_BUILD=quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/osd-example-operator-build:84e8a4412ec6850e43b630bd70d8812b848e62d1
+RUN make update-bundle
 
 FROM scratch
 
@@ -18,15 +21,15 @@ LABEL operators.operatorframework.io.metrics.project_layout=unknown
 COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/manifests /manifests/
 COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/metadata /metadata/
 
-LABEL name="osd-example-operator"
-LABEL distribution-scope="public"
-LABEL release="0.0.1"
-LABEL version="0.0.1"
-LABEL url="https://github.com/openshift/osd-example-operator"
-LABEL vendor="Red Hat, Inc."
-LABEL description="Example operator used for testing in Service Delivery"
-LABEL summary="sample operator configured similarly to production SD operators used for testing"
-LABEL com.redhat.component="osd-example-operator"
-LABEL io.k8s.description="osd-example-operator"
-LABEL io.k8s.display-name="osd-example-operator"
-LABEL io.openshift.tags="data,images"
+LABEL name="osd-example-operator" \
+     distribution-scope="public" \
+     release="0.0.1" \
+     version="0.0.1" \
+     url="https://github.com/openshift/osd-example-operator" \
+     vendor="Red Hat, Inc." \
+     description="Example operator used for testing in Service Delivery" \
+     summary="sample operator configured similarly to production SD operators used for testing" \
+     com.redhat.component="osd-example-operator" \
+     io.k8s.description="osd-example-operator" \
+     io.k8s.display-name="osd-example-operator" \
+     io.openshift.tags="data,images"

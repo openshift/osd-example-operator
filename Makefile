@@ -11,3 +11,6 @@ export SKIP_SAAS_FILE_CHECKS=y
 .PHONY: boilerplate-update
 boilerplate-update:
 	@boilerplate/update
+
+update-bundle:
+	sed -i "s|REPLACE_IMAGE|${OPERATOR_IMAGE_BUILD}|" bundle/manifests/osd-example-operator-bundle.clusterserviceversion.yaml
