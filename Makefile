@@ -1,8 +1,6 @@
 FIPS_ENABLED=true
 HARNESS_TIMEOUT=690
-
-VERSION_MAJOR=4
-VERSION_MINOR=15
+RELEASE_BRANCHED_BUILDS?=true
 
 include boilerplate/generated-includes.mk
 SHELL := /usr/bin/env bash
