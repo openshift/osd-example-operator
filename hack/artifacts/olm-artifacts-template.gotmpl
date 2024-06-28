@@ -1,0 +1,63 @@
+# NAMESPACE, REPO_NAME, REGISTRY_IMG, IMAGE_DIGEST, CHANNEL 
+{{ if eq .config.cluster_metadata.api_openshift_com_name "rvmo-demo2" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    package-operator.run/phase: namespaces
+  labels:
+    openshift.io/cluster-monitoring: 'true'
+  name: ${NAMESPACE}
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: ${REPO_NAME}
+  namespace: ${NAMESPACE}
+  annotations:
+    olm.operatorframework.io/exclude-global-namespace-resolution: 'true'
+    package-operator.run/phase: osd-example-operator
+spec:
+  targetNamespaces:
+  - e2e-testing
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  annotations:
+    package-operator.run/phase: osd-example-operator
+  labels:
+    opsrc-datastore: 'true'
+    opsrc-provider: redhat
+  name: ${REPO_NAME}-registry
+  namespace: ${NAMESPACE}
+spec:
+  displayName: ${REPO_NAME}
+  icon:
+    base64data: ''
+    mediatype: ''
+  image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
+  publisher: Red Hat
+  sourceType: grpc
+  grpcPodConfig:
+    securityContextConfig: restricted
+    nodeSelector:
+      node-role.kubernetes.io: infra
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/infra
+      operator: Exists
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: ${REPO_NAME}
+  namespace: ${NAMESPACE}
+  annotations:
+    package-operator.run/phase: osd-example-operator
+spec:
+  channel: ${CHANNEL}
+  name: ${REPO_NAME}
+  source: ${REPO_NAME}-registry
+  sourceNamespace: ${NAMESPACE}
+{{ end }}
