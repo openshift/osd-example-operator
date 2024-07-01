@@ -3,22 +3,21 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
-  creationTimestamp: null
-  name: memcacheds.cache.example.com
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: examples.managed.openshift.io
 spec:
-  group: cache.example.com
+  group: managed.openshift.io
   names:
-    kind: Memcached
-    listKind: MemcachedList
-    plural: memcacheds
-    singular: memcached
+    kind: Example
+    listKind: ExampleList
+    plural: examples
+    singular: example
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Memcached is the Schema for the memcacheds API
+        description: Example is the Schema for the Examples API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,15 +32,15 @@ spec:
           metadata:
             type: object
           spec:
-            description: MemcachedSpec defines the desired state of Memcached
+            description: ExampleSpec defines the desired state of Example
             properties:
               foo:
-                description: Foo is an example field of Memcached. Edit memcached_types.go
+                description: Foo is an example field of Example. Edit Example_types.go
                   to remove/update
                 type: string
             type: object
           status:
-            description: MemcachedStatus defines the observed state of Memcached
+            description: ExampleStatus defines the observed state of Example
             type: object
         type: object
     served: true
