@@ -9,7 +9,7 @@ name: alpha
 package: osd-example-operator-bundle
 schema: olm.channel
 ---
-image: "quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:fbaa9dcf34954398a9ce034576a361c4326f6e825069c50b5052776d3e29f81f"
+image: "quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:24555342528f04c55fd57669c61ed98093c8d73ba65a893659b0a3e4e9b36cd7"
 name: osd-example-operator-bundle.v0.1.0
 package: osd-example-operator-bundle
 properties:
@@ -60,6 +60,6 @@ properties:
       name: Provider Name
       url: https://your.domain
 relatedImages:
-- image: "quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:fbaa9dcf34954398a9ce034576a361c4326f6e825069c50b5052776d3e29f81f"
+- image: "quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:24555342528f04c55fd57669c61ed98093c8d73ba65a893659b0a3e4e9b36cd7"
   name: ""
 schema: olm.bundle
