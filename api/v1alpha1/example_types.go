@@ -23,17 +23,17 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// TestoperatorSpec defines the desired state of Testoperator
-type TestoperatorSpec struct {
+// ExampleSpec defines the desired state of Example
+type ExampleSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Testoperator. Edit Testoperator_types.go to remove/update
+	// Foo is an example field of Example. Edit Example_types.go to remove/update
 	Foo string `json:"foo,omitempty"`
 }
 
-// TestoperatorStatus defines the observed state of Testoperator
-type TestoperatorStatus struct {
+// ExampleStatus defines the observed state of Example
+type ExampleStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 }
@@ -41,24 +41,24 @@ type TestoperatorStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Testoperator is the Schema for the Testoperators API
-type Testoperator struct {
+// Example is the Schema for the Examples API
+type Example struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TestoperatorSpec   `json:"spec,omitempty"`
-	Status TestoperatorStatus `json:"status,omitempty"`
+	Spec   ExampleSpec   `json:"spec,omitempty"`
+	Status ExampleStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// TestoperatorList contains a list of Testoperator
-type TestoperatorList struct {
+// ExampleList contains a list of Example
+type ExampleList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Testoperator `json:"items"`
+	Items           []Example `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Testoperator{}, &TestoperatorList{})
+	SchemeBuilder.Register(&Example{}, &ExampleList{})
 }
