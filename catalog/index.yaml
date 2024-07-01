@@ -39,13 +39,13 @@ properties:
     description: Osd Example Operator Bundle description. TODO.
     displayName: Osd Example Operator Bundle
     installModes:
-    - supported: false
+    - supported: true
       type: OwnNamespace
     - supported: false
       type: SingleNamespace
     - supported: false
       type: MultiNamespace
-    - supported: true
+    - supported: false
       type: AllNamespaces
     keywords:
     - osd-example-operator-bundle
