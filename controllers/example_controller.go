@@ -27,26 +27,26 @@ import (
 	cachev1alpha1 "github.com/openshift/osd-example-operator/api/v1alpha1"
 )
 
-// TestoperatorReconciler reconciles a Testoperator object
-type TestoperatorReconciler struct {
+// ExampleReconciler reconciles a Example object
+type ExampleReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=cache.example.com,resources=Testoperators,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=cache.example.com,resources=Testoperators/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=cache.example.com,resources=Testoperators/finalizers,verbs=update
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=Examples,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=Examples/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=Examples/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Testoperator object against the actual cluster state, and then
+// the Example object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
-func (r *TestoperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ExampleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
@@ -55,8 +55,8 @@ func (r *TestoperatorReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TestoperatorReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ExampleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&cachev1alpha1.Testoperator{}).
+		For(&cachev1alpha1.Example{}).
 		Complete(r)
 }
