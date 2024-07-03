@@ -11,8 +11,8 @@ LABEL operators.operatorframework.io.metrics.mediatype.v1=metrics+v1
 LABEL operators.operatorframework.io.metrics.project_layout=unknown
 
 # Copy files to locations specified by labels.
-COPY bundle/manifests /manifests/
-COPY bundle/metadata /metadata/
+COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/manifests /manifests/
+COPY --from=builder /go/src/github.com/openshift/osd-example-operator/bundle/metadata /metadata/
 
 LABEL name="osd-example-operator" \
       distribution-scope="public" \
