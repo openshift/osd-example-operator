@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -mod=mod -a -o
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-896.1717584414
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-1018
 WORKDIR /
 RUN mkdir /licenses
 COPY --from=builder /workspace/LICENSE /licenses/.
