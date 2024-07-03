@@ -56,7 +56,7 @@ spec:
                       fieldPath: metadata.name
                 - name: OPERATOR_NAME
                   value: example
-                image: "quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/osd-example-operator-main@sha256:8489a37b5a4a9a2e4c8ec64165b60ecd10931b28d846e7d9e62eb85815977d6b"
+                image: "quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/osd-example-operator-main@sha256:6448509642431509c1032b2cc6bb687b1f5a4515cafe2e1318faf37be4bfa7bb"
                 imagePullPolicy: Always
                 name: example
                 resources: {}
