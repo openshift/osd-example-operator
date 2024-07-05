@@ -7,13 +7,13 @@ metadata:
     package-operator.run/phase: namespaces
   labels:
     openshift.io/cluster-monitoring: 'true'
-  name: ${NAMESPACE}
+  name: openshift-${OPERATOR_NAME}
 ---
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
-  name: ${REPO_NAME}
-  namespace: ${NAMESPACE}
+  name: ${OPERATOR_NAME}
+  namespace: openshift-${OPERATOR_NAME}
   annotations:
     olm.operatorframework.io/exclude-global-namespace-resolution: 'true'
     package-operator.run/phase: osd-example-operator
@@ -29,10 +29,10 @@ metadata:
   labels:
     opsrc-datastore: 'true'
     opsrc-provider: redhat
-  name: ${REPO_NAME}-registry
-  namespace: ${NAMESPACE}
+  name: ${OPERATOR_NAME}-registry
+  namespace: openshift-${OPERATOR_NAME}
 spec:
-  displayName: ${REPO_NAME}
+  displayName: ${OPERATOR_NAME}
   icon:
     base64data: ''
     mediatype: ''
@@ -51,13 +51,13 @@ spec:
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
-  name: ${REPO_NAME}
-  namespace: ${NAMESPACE}
+  name: ${OPERATOR_NAME}
+  namespace: openshift-${OPERATOR_NAME}
   annotations:
     package-operator.run/phase: osd-example-operator
 spec:
   channel: ${CHANNEL}
-  name: ${REPO_NAME}
-  source: ${REPO_NAME}-registry
+  name: ${OPERATOR_NAME}
+  source: ${OPERATOR_NAME}-registry
   sourceNamespace: ${NAMESPACE}
 {{ end }}
