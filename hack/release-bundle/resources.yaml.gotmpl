@@ -1,4 +1,4 @@
-# NAMESPACE, REPO_NAME, REGISTRY_IMG, IMAGE_DIGEST, CHANNEL 
+# REPO_NAME, OPERATOR_NAME, OPERATOR_VERSION, REGISTRY_IMG, IMAGE_DIGEST, CHANNEL
 {{ if eq .config.cluster_metadata.api_openshift_com_name "rvmo-demo2" }}
 apiVersion: v1
 kind: Namespace
@@ -59,5 +59,5 @@ spec:
   channel: ${CHANNEL}
   name: ${OPERATOR_NAME}
   source: ${OPERATOR_NAME}-registry
-  sourceNamespace: ${NAMESPACE}
+  sourceNamespace: openshift-${OPERATOR_NAME}
 {{ end }}
