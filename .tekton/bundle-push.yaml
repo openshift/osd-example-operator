@@ -212,6 +212,18 @@ spec:
         workspace: workspace
       - name: git-basic-auth
         workspace: git-auth
+    - name: generate-bundle
+      runAfter:
+      - prefetch-dependencies
+      taskSpec:
+        steps:
+        - name: generate-bundle
+          image: "quay.io/app-sre/boilerplate:image-v5.0.0"
+          workingDir: /workspace/output/source
+          script: make generate-bundle
+      workspaces:
+      - name: output
+        workspace: workspace
     - name: build-container
       params:
       - name: IMAGE
@@ -234,7 +246,7 @@ spec:
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
       runAfter:
-      - prefetch-dependencies
+      - generate-bundle
       taskRef:
         params:
         - name: name
