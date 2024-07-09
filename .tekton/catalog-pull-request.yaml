@@ -178,6 +178,23 @@ spec:
         workspace: workspace
       - name: basic-auth
         workspace: git-auth
+    - name: generate-catalog
+      runAfter:
+      - clone-repository
+      taskSpec:
+        steps:
+        - name: generate-catalog
+          image: "registry.access.redhat.com/ubi9/ubi:latest"
+          workingDir: /workspace/output/source
+          script: ./hack/generate-catalog.sh
+      when:
+      - input: $(tasks.init.results.build)
+        operator: in
+        values:
+        - "true"
+      workspaces:
+      - name: output
+        workspace: workspace
     - name: build-container
       params:
       - name: IMAGE
@@ -193,7 +210,7 @@ spec:
       - name: COMMIT_SHA
         value: $(tasks.clone-repository.results.commit)
       runAfter:
-      - clone-repository
+      - generate-catalog
       taskRef:
         params:
         - name: name
