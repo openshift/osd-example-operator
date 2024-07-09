@@ -12,8 +12,7 @@ metadata:
       target_branch == "konflux-builds" &&
       (
         ".tekton/catalog-pull-request.yaml".pathChanged() ||
-        "catalog/***".pathChanged() ||
-        "catalog.Dockerfile".pathChanged()
+        "hack/generate-catalog.sh".pathChanged()
       )
   creationTimestamp: null
   labels:
