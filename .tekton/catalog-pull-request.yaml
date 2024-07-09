@@ -11,7 +11,7 @@ metadata:
       event == "pull_request" &&
       target_branch == "konflux-builds" &&
       (
-        ".tekton/catalog-push.yaml".pathChanged() ||
+        ".tekton/catalog-pull-request.yaml".pathChanged() ||
         "catalog/***".pathChanged() ||
         "catalog.Dockerfile".pathChanged()
       )
