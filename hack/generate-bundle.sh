@@ -6,4 +6,4 @@ if ! command -v operator-sdk ; then
 	PATH="${PATH}:."
 fi
 
-operator-sdk generate bundle --overwrite --version "${VERSION}" --input-dir deploy/ --package "${OPERATOR_NAME}-bundle"
+operator-sdk generate bundle --overwrite --version "${VERSION}" --input-dir deploy/ --package "${OPERATOR_NAME}"
