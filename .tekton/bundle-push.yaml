@@ -12,6 +12,7 @@ metadata:
       target_branch == "konflux-builds" &&
       (
         ".tekton/bundle-push.yaml".pathChanged() ||
+        "hack/generate-bundle.sh".pathChanged() ||
         "deploy/***".pathChanged()
       )
   creationTimestamp: null
