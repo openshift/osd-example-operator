@@ -16,3 +16,6 @@ generate-bundle:
 	VERSION="$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)" \
 	OPERATOR_NAME="$(OPERATOR_NAME)" \
 	./hack/generate-bundle.sh
+
+version:
+	@echo "$(VERSION_MAJOR).$(VERSION_MINOR).$(COMMIT_NUMBER)-$(CURRENT_COMMIT)"
