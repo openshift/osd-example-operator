@@ -10,7 +10,7 @@ fi
 
 mkdir catalog/
 
-bundle_image=quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:e9701e8ceed7d3a254d80c88f818184102c0690feed7c752b778b2b090aaa84d
+bundle_image=quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:570c3e3808236d003d0430f035f7c108200c7adc3927e49919aea830c6ed95d2
 
 opm generate dockerfile catalog/ \
 	-i registry.redhat.io/openshift4/ose-operator-registry:latest
