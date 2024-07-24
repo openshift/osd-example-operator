@@ -7,15 +7,8 @@ metadata:
     build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: |
-      event == "pull_request" &&
-      target_branch == "konflux-builds" &&
-      (
-        ".tekton/operator-pull-request.yaml".pathChanged() ||
-        "build/Dockerfile".pathChanged() ||
-        "***/*.go".pathChanged() ||
-        "***/go.*".pathChanged()
-      )
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
+      == "konflux-builds"
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: osd-example-operator
@@ -35,10 +28,6 @@ spec:
     value: 5d
   - name: dockerfile
     value: build/Dockerfile
-  - name: prefetch-input
-    value: gomod
-  - name: build-source-image
-    value: 'true'
   pipelineSpec:
     finally:
     - name: show-sbom
