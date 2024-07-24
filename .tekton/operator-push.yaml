@@ -6,8 +6,15 @@ metadata:
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "konflux-builds"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "push" &&
+      target_branch == "konflux-builds" &&
+      (
+        ".tekton/operator-push.yaml".pathChanged() ||
+        "build/Dockerfile".pathChanged() ||
+        "***/*.go".pathChanged() ||
+        "***/go.*".pathChanged()
+      )
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: osd-example-operator
@@ -25,6 +32,10 @@ spec:
     value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/operator:{{revision}}
   - name: dockerfile
     value: build/Dockerfile
+  - name: prefetch-input
+    value: gomod
+  - name: build-source-image
+    value: 'true'
   pipelineSpec:
     finally:
     - name: show-sbom
