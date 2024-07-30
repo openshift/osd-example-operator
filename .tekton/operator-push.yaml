@@ -32,6 +32,8 @@ spec:
     value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/operator:{{revision}}
   - name: dockerfile
     value: build/Dockerfile
+  - name: build-source-image
+    value: 'true'
   pipelineSpec:
     finally:
     - name: show-sbom

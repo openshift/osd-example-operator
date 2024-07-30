@@ -35,6 +35,8 @@ spec:
     value: 5d
   - name: dockerfile
     value: osde2e/Containerfile.konflux
+  - name: build-source-image
+    value: 'true'
   pipelineSpec:
     finally:
     - name: show-sbom
