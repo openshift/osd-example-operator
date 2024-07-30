@@ -7,8 +7,13 @@ metadata:
     build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
-      == "konflux-builds"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "pull_request" &&
+      target_branch == "konflux-builds" &&
+      (
+        ".tekton/bundle-pull-request.yaml".pathChanged() ||
+        "deploy/***".pathChanged()
+      )
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: osd-example-operator
@@ -210,6 +215,47 @@ spec:
         workspace: git-auth
       - name: netrc
         workspace: netrc
+    - name: get-current-version
+      runAfter:
+      - prefetch-dependencies
+      taskSpec:
+        results:
+          - name: version
+            description: current version of the operator
+        steps:
+        - name: get-current-version
+          image: quay.io/app-sre/boilerplate:image-v5.0.0
+          workingDir: $(workspaces.source.path)/source
+          script: |
+            #!/usr/bin/env bash
+            make version > "$(results.version.path)"
+        workspaces:
+        - name: source
+      workspaces:
+      - name: source
+        workspace: workspace
+    - name: operator-sdk-generate-bundle
+      params:
+      - name: channels
+        value: stable
+      - name: package-name
+        value: osd-example-operator
+      - name: version
+        value: $(tasks.get-current-version.results.version)
+      runAfter:
+      - get-current-version
+      taskRef:
+        params:
+        - name: name
+          value: operator-sdk-generate-bundle
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-operator-sdk-generate-bundle:0.1@sha256:ff6f5fcb9100ba013de33b7abd2fb0d81ba745d161838a18836c040c6c1d8557
+        - name: kind
+          value: task
+        resolver: bundles
+      workspaces:
+      - name: source
+        workspace: workspace
     - name: build-container
       params:
       - name: IMAGE
@@ -232,7 +278,7 @@ spec:
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
       runAfter:
-      - prefetch-dependencies
+      - operator-sdk-generate-bundle
       taskRef:
         params:
         - name: name
