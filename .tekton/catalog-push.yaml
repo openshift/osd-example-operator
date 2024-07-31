@@ -193,7 +193,7 @@ spec:
           script: |
             #!/usr/bin/env bash
             set -eo pipefail
-            opm render ${BUNDLE_IMAGE} | sed -n 's/.*"name": "\(.*\.v.*\)",/\1/p' | cut -d. -f2- > "$(results.version.path)"
+            opm render ${BUNDLE_IMAGE} | sed -n 's/.*"name": ".*\.\(v.*\)",/\1/p' > "$(results.version.path)"
         workspaces:
         - name: source
       workspaces:
