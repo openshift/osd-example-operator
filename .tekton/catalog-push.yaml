@@ -6,8 +6,10 @@ metadata:
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "konflux-builds"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "push" &&
+      target_branch == "konflux-builds" &&
+      ".tekton/catalog-push.yaml".pathChanged()
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: osd-example-operator
@@ -25,6 +27,8 @@ spec:
     value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/catalog:{{revision}}
   - name: dockerfile
     value: catalog.Dockerfile
+  - name: operator-bundle-image
+    value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:cc32a28f75849277e3b6fa52c2d56ac8b4d0f7d9225494cf1ba005a0b822f938
   pipelineSpec:
     finally:
     - name: show-sbom
@@ -169,6 +173,54 @@ spec:
         workspace: workspace
       - name: basic-auth
         workspace: git-auth
+    - name: get-bundle-version
+      runAfter:
+      - clone-repository
+      params:
+      - name: bundle-image
+        value: $(params.operator-bundle-image)
+      taskSpec:
+        results:
+        - name: version
+          description: current version of the operator
+        steps:
+        - name: get-bundle-version
+          image: registry.redhat.io/openshift4/ose-operator-registry:latest
+          workingDir: $(workspaces.source.path)/source
+          env:
+          - name: BUNDLE_IMAGE
+            value: $(params.bundle-image)
+          script: |
+            #!/usr/bin/env bash
+            set -eo pipefail
+            opm render ${BUNDLE_IMAGE} | sed -n 's/.*"name": "\(.*\.v.*\)",/\1/p' | cut -d. -f2- > "$(results.version.path)"
+        workspaces:
+        - name: source
+      workspaces:
+      - name: source
+        workspace: workspace
+    - name: generate-olm-catalog
+      runAfter:
+      - get-bundle-version
+      params:
+      - name: bundle-images
+        value: $(params.operator-bundle-image)
+      - name: operator-name
+        value: osd-example-operator
+      - name: operator-version
+        value: $(tasks.get-bundle-version.results.version)
+      taskRef:
+        params:
+        - name: name
+          value: opm-render-bundles
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-opm-render-bundles:0.1@sha256:5b7863ef326a9ca0c9431b77de44a5485f15950708ebd4e2e5b110b53ef0b2b5
+        - name: kind
+          value: task
+        resolver: bundles
+      workspaces:
+      - name: source
+        workspace: workspace
     - name: build-container
       params:
       - name: IMAGE
@@ -184,7 +236,7 @@ spec:
       - name: COMMIT_SHA
         value: $(tasks.clone-repository.results.commit)
       runAfter:
-      - clone-repository
+      - generate-olm-catalog
       taskRef:
         params:
         - name: name
