@@ -176,42 +176,34 @@ spec:
         workspace: workspace
       - name: basic-auth
         workspace: git-auth
-    - name: get-bundle-version
+    - name: opm-get-bundle-version
       runAfter:
       - clone-repository
       params:
       - name: bundle-image
         value: $(params.operator-bundle-image)
-      taskSpec:
-        results:
-        - name: version
-          description: current version of the operator
-        steps:
-        - name: get-bundle-version
-          image: registry.redhat.io/openshift4/ose-operator-registry:latest
-          workingDir: $(workspaces.source.path)/source
-          env:
-          - name: BUNDLE_IMAGE
-            value: $(params.bundle-image)
-          script: |
-            #!/usr/bin/env bash
-            set -eo pipefail
-            opm render ${BUNDLE_IMAGE} | sed -n 's/.*"name": ".*\.\(v.*\)",/\1/p' > "$(results.version.path)"
-        workspaces:
-        - name: source
+      taskRef:
+        params:
+        - name: name
+          value: opm-get-bundle-version
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-opm-get-bundle-version:0.1@sha256:7faac7a514a98e0ebddd975946d7bb406ab87c5607a957d9df9ea91169e6bfa8
+        - name: kind
+          value: task
+        resolver: bundles
       workspaces:
-      - name: source
+      - name: workspace
         workspace: workspace
     - name: generate-olm-catalog
       runAfter:
-      - get-bundle-version
+      - opm-get-bundle-version
       params:
       - name: bundle-images
         value: $(params.operator-bundle-image)
       - name: operator-name
         value: osd-example-operator
       - name: operator-version
-        value: $(tasks.get-bundle-version.results.version)
+        value: v$(tasks.opm-get-bundle-version.results.bundle-version)
       taskRef:
         params:
         - name: name
