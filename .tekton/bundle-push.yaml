@@ -241,6 +241,8 @@ spec:
         value: $(tasks.get-current-version.results.version)
       - name: kustomize-dir
         value: config/manifests
+      - name: extra-service-accounts
+        value: osd-example-admin
       runAfter:
       - get-current-version
       taskRef:
