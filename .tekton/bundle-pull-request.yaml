@@ -242,6 +242,8 @@ spec:
         value: osd-example-operator
       - name: version
         value: $(tasks.get-current-version.results.version)
+      - name: kustomize-dir
+        value: config/manifests
       runAfter:
       - get-current-version
       taskRef:
