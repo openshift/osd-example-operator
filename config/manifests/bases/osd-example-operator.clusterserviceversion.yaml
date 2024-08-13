@@ -1,0 +1,59 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+    categories: A list of comma separated categories that your operator falls under.
+    certified: "false"
+    description: Example operator e2e test harness
+    containerImage: quay.io/app-sre/osd-example-operator:latest
+    support: osde2e
+  name: osd-example-operator.v0.0.0
+  namespace: openshift-osd-example-operator
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: Example is the Schema for the Examples API
+      displayName: Example
+      kind: Example
+      name: examples.managed.openshift.io
+      version: v1alpha1
+  description: example operator
+  displayName: osd-example-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: false
+    type: AllNamespaces
+  keywords:
+  - managed-openshift
+  - operator-sdk
+  - golang
+  - osde2e
+  - node
+  - openshift-dedicated
+  - openshift
+  - redhat
+  links:
+  - name: OSD Example Operator
+    url: https://github.com/openshift/osd-example-operator
+  maintainers:
+  - email: test
+    name: test
+  maturity: alpha
+  provider:
+    name: redhat
+  version: 0.0.0
