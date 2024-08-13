@@ -248,7 +248,7 @@ spec:
         - name: name
           value: operator-sdk-generate-bundle
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-operator-sdk-generate-bundle:0.1@sha256:c7ec8889ef4cb95b78de57562a0316355adfdc7db058e69089a5fe5d34afd896
+          value: quay.io/konflux-ci/tekton-catalog/task-operator-sdk-generate-bundle:0.1@sha256:7d07566e0401f323aa41917a3204f3fb44564cbaf03ed10d1b48632178777266
         - name: kind
           value: task
         resolver: bundles
