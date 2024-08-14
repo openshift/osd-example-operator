@@ -12,7 +12,8 @@ metadata:
       target_branch == "konflux-builds" &&
       (
         ".tekton/bundle-pull-request.yaml".pathChanged() ||
-        "deploy/***".pathChanged()
+        "deploy/***".pathChanged() ||
+        "config/manifests/***".pathChanged()
       )
   creationTimestamp: null
   labels:
