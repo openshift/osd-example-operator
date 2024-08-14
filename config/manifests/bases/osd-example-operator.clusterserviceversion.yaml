@@ -2,7 +2,16 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    alm-examples: '[]'
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "managed.openshift.io/v1alpha1"
+          "kind": "Example",
+          "metadata": {
+            "name": "example"
+          }
+        }
+      ]
     capabilities: Basic Install
     categories: A list of comma separated categories that your operator falls under.
     certified: "false"
