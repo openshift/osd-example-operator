@@ -28,7 +28,7 @@ spec:
   - name: dockerfile
     value: catalog.Dockerfile
   - name: operator-bundle-image
-    value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:42322fa3b130c97360ed6e458652d32a6c01b08609d561978d9cec45712e3328
+    value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator/bundle@sha256:5977a74e48849596cb4cf92f1aa3d2793c3a57849b3d2caf1c4af160cfe41210
   pipelineSpec:
     finally:
     - name: show-sbom
