@@ -16,7 +16,6 @@ metadata:
     categories: A list of comma separated categories that your operator falls under.
     certified: "false"
     description: Example operator e2e test harness
-    containerImage: quay.io/app-sre/osd-example-operator:latest
     support: osde2e
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"

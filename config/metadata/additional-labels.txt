@@ -1,0 +1,9 @@
+LABEL com.redhat.component="" \
+      description="" \
+      distribution-scope="" \
+      io.k8s.description="" \
+      name="" \
+      release="" \
+      url="" \
+      vendor="" \
+      version=""
