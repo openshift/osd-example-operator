@@ -12,7 +12,8 @@ metadata:
       (
         ".tekton/bundle-push.yaml".pathChanged() ||
         "deploy/***".pathChanged() ||
-        "config/manifests/***".pathChanged()
+        "config/manifests/***".pathChanged() ||
+        "config/metadata/***".pathChanged()
       )
   creationTimestamp: null
   labels:

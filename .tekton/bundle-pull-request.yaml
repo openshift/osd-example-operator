@@ -13,7 +13,8 @@ metadata:
       (
         ".tekton/bundle-pull-request.yaml".pathChanged() ||
         "deploy/***".pathChanged() ||
-        "config/manifests/***".pathChanged()
+        "config/manifests/***".pathChanged() ||
+        "config/metadata/***".pathChanged()
       )
   creationTimestamp: null
   labels:
