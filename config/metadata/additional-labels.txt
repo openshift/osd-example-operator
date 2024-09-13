@@ -5,5 +5,5 @@ LABEL com.redhat.component="openshift-osd-example-operator" \
       name="openshift/osd-example-operator" \
       release="v0.0.0" \
       url="https://github.com/openshift/osd-example-operator" \
-      vendor="Red Hat" \
+      vendor="Red Hat, Inc." \
       version="v0.0.0"
