@@ -39,4 +39,6 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
-              value: "osd-example-operator"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
