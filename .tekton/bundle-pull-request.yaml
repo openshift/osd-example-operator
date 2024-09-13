@@ -248,6 +248,8 @@ spec:
         value: config/manifests
       - name: extra-service-accounts
         value: osd-example-admin
+      - name: additional-labels-file
+        value: config/metadata/additional-labels.txt
       runAfter:
       - get-current-version
       taskRef:
