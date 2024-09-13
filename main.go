@@ -20,10 +20,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-var (
-	setupLog = ctrl.Log.WithName("setup")
-)
+var setupLog = ctrl.Log.WithName("setup")
 
 func main() {
-	setupLog.Info("Hello from example operator")
+	setupLog.Info("Hello from example operator!")
 }

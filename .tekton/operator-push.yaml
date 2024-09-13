@@ -13,7 +13,7 @@ metadata:
         ".tekton/operator-push.yaml".pathChanged() ||
         "build/Dockerfile".pathChanged() ||
         "***/*.go".pathChanged() ||
-        "***/go.*".pathChanged()
+        "go.*".pathChanged()
       )
   creationTimestamp: null
   labels:
