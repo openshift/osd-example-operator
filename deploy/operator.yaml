@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: testoperator
+  name: example
 spec:
   replicas: 1
   selector:
     matchLabels:
-      name: testoperator
+      name: example
   template:
     metadata:
       labels:
-        name: testoperator
+        name: example
     spec:
-      serviceAccountName: testoperator
+      serviceAccountName: example
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -42,4 +42,4 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
-              value: "testoperator"
+              value: "example"

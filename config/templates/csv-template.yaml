@@ -37,10 +37,10 @@ spec:
     strategy: deployment
     spec:
       clusterPermissions:
-        - serviceAccountName: testoperator
+        - serviceAccountName: example
           # Rules will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
       deployments:
-        - name: testoperator
+        - name: example
           # Deployment spec will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
   customresourcedefinitions:
     owned:
