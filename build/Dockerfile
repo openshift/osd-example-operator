@@ -1,4 +1,4 @@
-FROM quay.io/redhat-services-prod/boilerplate/image@sha256:e18ab04554ed7e4eff28e1417390fb0fcf1c288d6a6b3678ae57387a0d6096c8 as builder
+FROM quay.io/redhat-services-prod/boilerplate/image@sha256:5a74b6753803d0c88282f29e02a30f164f0b6ef839dfc47c4a4da890e0fc0a15 as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
