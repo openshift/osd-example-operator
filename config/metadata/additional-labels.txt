@@ -1,0 +1,9 @@
+LABEL com.redhat.component="openshift-osd-example-operator" \
+      description="A sample operator used for testing SREP tooling" \
+      distribution-scope="public" \
+      io.k8s.description="A sample operator used for testing SREP tooling" \
+      name="openshift/osd-example-operator" \
+      release="v0.0.0" \
+      url="https://github.com/openshift/osd-example-operator" \
+      vendor="Red Hat, Inc." \
+      version="v0.0.0"
