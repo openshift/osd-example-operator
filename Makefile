@@ -1,6 +1,8 @@
 FIPS_ENABLED=true
 HARNESS_TIMEOUT=690
 
+export KONFLUX_BUILDS=true
+
 include boilerplate/generated-includes.mk
 SHELL := /usr/bin/env bash
 # needed for internal saas file as boilerplate checks commercial app-interface saas file hashes
