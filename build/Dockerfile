@@ -1,4 +1,4 @@
-FROM quay.io/app-sre/boilerplate:image-v5.0.2 AS builder
+FROM quay.io/app-sre/boilerplate:image-v5.0.3 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
