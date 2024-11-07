@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: example
+  name: osd-example-operator
 spec:
   replicas: 1
   selector:
     matchLabels:
-      name: example
+      name: osd-example-operator
   template:
     metadata:
       labels:
-        name: example
+        name: osd-example-operator
     spec:
-      serviceAccountName: example
+      serviceAccountName: osd-example-operator
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -26,11 +26,8 @@ spec:
           key: node-role.kubernetes.io/infra
           operator: Exists
       containers:
-        - name: test-operator
-          # Replace this with the built image name
-          image: REPLACE_IMAGE
-          command:
-          - test-operator
+        - name: osd-example-operator
+          image: quay.io/redhat-services-prod/oeo-cicada-tenant/osd-example-operator@sha256:eeea318fec43cd63063f7fe546353d76d202b040f5f000006e440fc110371163
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
@@ -42,4 +39,4 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
-              value: "example"
+              value: "osd-example-operator"
