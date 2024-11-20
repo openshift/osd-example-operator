@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: osd-example-operator-cluster-admin
+rules:
+- apiGroups:
+  - 'managed.openshift.io'
+  resources:
+  - 'Examples'
+  verbs:
+  - 'get'
+  - 'list'
+  - 'watch'
+  - 'create'
+  - 'update'
+  - 'patch'
+  - 'delete'
