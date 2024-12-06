@@ -23,16 +23,6 @@ spec:
     value: '{{revision}}'
   - name: output-image
     value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator-main/osd-example-operator-main/bundle:{{revision}}
-  - name: dockerfile
-    value: bundle.Dockerfile
-  - name: path-context
-    value: .
-  - name: major-version
-    value: "0"
-  - name: minor-version
-    value: "2"
-  - name: channel
-    value: stable
   - name: package-name
     value: osd-example-operator
   pipelineRef:
