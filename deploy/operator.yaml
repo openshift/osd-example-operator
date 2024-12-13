@@ -27,7 +27,7 @@ spec:
           operator: Exists
       containers:
         - name: osd-example-operator
-          image: quay.io/redhat-services-prod/oeo-cicada-tenant/osd-example-operator@sha256:df1257bce9f7e8f85c77c10cb08a161fd21cf9d57b539c9e446359f5c2a83423
+          image: quay.io/redhat-services-prod/oeo-cicada-tenant/osd-example-operator@sha256:cc4c2d463494164a49afb939f23f6d244330e42a31316d3bce512b920a2109a2
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
