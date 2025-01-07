@@ -1,6 +1,8 @@
 module github.com/openshift/osd-example-operator
 
-go 1.21
+go 1.22
+
+toolchain go1.23.4
 
 require (
 	github.com/onsi/ginkgo/v2 v2.11.0
