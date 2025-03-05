@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	managedv1alpha1 "github.com/openshift/osd-example-operator/api/v1alpha1"
-	"github.com/openshift/osd-example-operator/controllers"
+	"github.com/openshift/osd-example-operator/internal/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
