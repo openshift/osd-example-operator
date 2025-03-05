@@ -248,7 +248,7 @@ endif
 go-build: ## Build binary
 	# Force GOOS=linux as we may want to build containers in other *nix-like systems (ie darwin).
 	# This is temporary until a better container build method is developed
-	${GOENV} GOOS=linux go build ${GOBUILDFLAGS} -o build/_output/bin/$(OPERATOR_NAME) .
+	${GOENV} GOOS=linux go build ${GOBUILDFLAGS} -o build/_output/bin/$(OPERATOR_NAME) ./cmd/
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
