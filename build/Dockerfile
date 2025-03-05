@@ -9,7 +9,7 @@ COPY . .
 RUN make go-build
 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-1154
-ENV OPERATOR=/usr/local/bin/must-gather-operator \
+ENV OPERATOR=/usr/local/bin/osd-example-operator \
     USER_UID=1001 \
     USER_NAME=osd-example-operator
 
