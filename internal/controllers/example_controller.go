@@ -19,12 +19,11 @@ package controllers
 import (
 	"context"
 
+	managedv1alpha "github.com/openshift/osd-example-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	cachev1alpha1 "github.com/openshift/osd-example-operator/api/v1alpha1"
 )
 
 // ExampleReconciler reconciles a Example object
@@ -57,6 +56,6 @@ func (r *ExampleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // SetupWithManager sets up the controller with the Manager.
 func (r *ExampleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&cachev1alpha1.Example{}).
+		For(&managedv1alpha.Example{}).
 		Complete(r)
 }
