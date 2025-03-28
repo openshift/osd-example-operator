@@ -1,7 +1,7 @@
 FIPS_ENABLED=true
 HARNESS_TIMEOUT=690
 
-export KONFLUX_BUILDS=true
+
 
 include boilerplate/generated-includes.mk
 SHELL := /usr/bin/env bash
