@@ -1,0 +1,61 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/openshift/osd-example-operator?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "push" &&
+      target_branch == "master" &&
+      ".tekton/catalog-master-push.yaml".pathChanged()
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: osd-example-operator-main
+    appstudio.openshift.io/component: catalog-main
+    pipelines.appstudio.openshift.io/type: build
+  name: catalog-main-on-push
+  namespace: oeo-cicada-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator-main/osd-example-operator-main/catalog:{{revision}}
+  - name: dockerfile
+    value: catalog.Dockerfile
+  - name: operator-name
+    value: osd-example-operator
+  - name: operator-bundle-image
+    value: quay.io/redhat-services-prod/oeo-cicada-tenant/osd-example-operator-bundle@sha256:2d672a9da07339dd51a01f98732825addd5653e56dcec06c5bbfe27c39e160a9
+  - name: default-channel
+    value: stable
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/openshift/boilerplate
+    - name: revision
+      value: master
+    - name: pathInRepo
+      value: pipelines/catalog-builder/pipeline.yaml
+  taskRunTemplate: {}
+  workspaces:
+  - name: workspace
+    volumeClaimTemplate:
+      metadata:
+        creationTimestamp: null
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+      status: {}
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
