@@ -3,18 +3,17 @@ apiVersion: template.openshift.io/v1
 kind: Template
 parameters:
 - name: CHANNEL
-  required: true
+  required: false
 - name: IMAGE_TAG
-  required: true
+  required: false
 - name: IMAGE_DIGEST
-  required: true
+  required: false
 - name: NAMESPACE
   value: openshift-osd-example-operator
 - name: REGISTRY_IMG
-  required: true
+  required: false
 - name: REPO_NAME
   value: osd-example-operator
-  required: true
 metadata:
   name: selectorsyncset-template
 objects: []
