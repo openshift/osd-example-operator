@@ -495,7 +495,8 @@ spec:
       optional: true
     - name: netrc
       optional: true
-  taskRunTemplate: {}
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-e2e-main
   workspaces:
   - name: workspace
     volumeClaimTemplate:
