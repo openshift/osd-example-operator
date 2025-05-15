@@ -1,0 +1,19 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: osde2e-dummy
+
+objects:
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: oeo-dummy-${IMAGE_TAG}-${JOBID}
+  spec:
+    backoffLimit: 0
+    template:
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: wait-and-fail
+          image: busybox
+          command: ["sh", "-c", "sleep 600 && exit 1"] 
