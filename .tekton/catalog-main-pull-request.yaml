@@ -35,7 +35,6 @@ spec:
   - name: default-channel
     value: stable
   pipelineRef:
-    resolver: git
     params:
     - name: url
       value: https://github.com/openshift/boilerplate
@@ -43,7 +42,9 @@ spec:
       value: master
     - name: pathInRepo
       value: pipelines/catalog-builder/pipeline.yaml
-  taskRunTemplate: {}
+    resolver: git
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-catalog-main
   workspaces:
   - name: workspace
     volumeClaimTemplate:
