@@ -31,7 +31,7 @@ spec:
   - name: operator-name
     value: osd-example-operator
   - name: operator-bundle-image
-    value: quay.io/redhat-services-prod/oeo-cicada-tenant/osd-example-operator-bundle@sha256:2d672a9da07339dd51a01f98732825addd5653e56dcec06c5bbfe27c39e160a9
+    value: quay.io/redhat-services-prod/oeo-cicada-tenant/osd-example-operator-bundle@sha256:566ee80d73fb20a0b3e9cb26af6afbe00a1fcbbb026fe446fb164915243c45ea
   - name: default-channel
     value: stable
   pipelineRef:
