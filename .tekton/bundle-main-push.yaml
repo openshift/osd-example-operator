@@ -43,7 +43,6 @@ spec:
   - name: package-name
     value: osd-example-operator
   pipelineRef:
-    resolver: git
     params:
     - name: url
       value: https://github.com/openshift/boilerplate
@@ -51,7 +50,9 @@ spec:
       value: master
     - name: pathInRepo
       value: pipelines/bundle-builder/pipeline.yaml
-  taskRunTemplate: {}
+    resolver: git
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-bundle-main
   workspaces:
   - name: workspace
     volumeClaimTemplate:
