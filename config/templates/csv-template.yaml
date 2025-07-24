@@ -6,42 +6,43 @@ metadata:
   annotations:
     categories: A list of comma separated categories that your operator falls under.
     certified: "false"
-    description: Example operator e2e test harness
-    containerImage: quay.io/app-sre/osd-example-operator:latest
-    support: Osde2e
+    description: Operator used for CI testing and development
+    containerImage: quay.io/app-sre/osd-example-operator:GENERATED
+    support: Red Hat OpenShift SRE
 spec:
   displayName: osd-example-operator
-  description: Example operator e2e test harness 
+  description: Operator used for CI testing and development
   keywords:
-    - operator-sdk
-    - golang
-    - osde2e
-    - node
-    - openshift-dedicated
-    - openshift
-    - redhat
+  - kubernetes
+  - openshift
+  - multi-cluster
+  - cluster
   version: 0.0.1
   provider:
     name: Red Hat, Inc
   maturity: alpha
+  maintainers:
+  - name: OpenShift SRE
+  links:
+  - url: https://github.com/openshift/osd-example-operator
   installModes:
-    - type: OwnNamespace
-      supported: true
-    - type: SingleNamespace
-      supported: true
-    - type: MultiNamespace
-      supported: false
-    - type: AllNamespaces
-      supported: false
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: false
   install:
     strategy: deployment
     spec:
       clusterPermissions:
-        - serviceAccountName: example
-          # Rules will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+      - serviceAccountName: osd-example-operator
+        # Rules will be added here by the generate-operator-bundle.py script.
       deployments:
-        - name: example
-          # Deployment spec will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+      - name: osd-example-operator
+        # Deployment spec will be added here by the generate-operator-bundle.py script.
   customresourcedefinitions:
     owned:
-    # CRD's will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+    # CRD's will be added here by the generate-operator-bundle.py
