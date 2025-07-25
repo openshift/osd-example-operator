@@ -1,19 +1,83 @@
-# DO NOT EDIT!!!!
-apiVersion: template.openshift.io/v1
+apiVersion: v1
 kind: Template
 parameters:
 - name: CHANNEL
-  required: false
+  required: true
 - name: IMAGE_TAG
-  required: false
+  required: true
 - name: IMAGE_DIGEST
-  required: false
+  required: true
 - name: NAMESPACE
   value: openshift-osd-example-operator
 - name: REGISTRY_IMG
-  required: false
+  required: true
 - name: REPO_NAME
   value: osd-example-operator
+  required: true
 metadata:
   name: selectorsyncset-template
-objects: []
+objects:
+- apiVersion: hive.openshift.io/v1
+  kind: SelectorSyncSet
+  metadata:
+    labels:
+      managed.openshift.io/gitHash: ${IMAGE_TAG}
+      managed.openshift.io/gitRepoName: ${REPO_NAME}
+      managed.openshift.io/osd: 'true'
+    name: osd-example-operator
+  spec:
+    clusterDeploymentSelector:
+      matchLabels:
+        api.openshift.com/managed: 'true'
+    resourceApplyMode: Sync
+    resources:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          openshift.io/cluster-monitoring: 'true'
+        name: ${NAMESPACE}
+    - apiVersion: operators.coreos.com/v1
+      kind: OperatorGroup
+      metadata:
+        name: ${REPO_NAME}
+        namespace: ${NAMESPACE}
+        annotations:
+          olm.operatorframework.io/exclude-global-namespace-resolution: 'true'
+      spec:
+        targetNamespaces:
+        - openshift-machine-api
+    - apiVersion: operators.coreos.com/v1alpha1
+      kind: CatalogSource
+      metadata:
+        labels:
+          opsrc-datastore: 'true'
+          opsrc-provider: redhat
+        name: ${REPO_NAME}-registry
+        namespace: ${NAMESPACE}
+      spec:
+        displayName: ${REPO_NAME}
+        icon:
+          base64data: ''
+          mediatype: ''
+        image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
+        publisher: Red Hat
+        sourceType: grpc
+        grpcPodConfig:
+          securityContextConfig: restricted
+          nodeSelector:
+            node-role.kubernetes.io: infra
+          tolerations:
+          - effect: NoSchedule
+            key: node-role.kubernetes.io/infra
+            operator: Exists
+    - apiVersion: operators.coreos.com/v1alpha1
+      kind: Subscription
+      metadata:
+        name: ${REPO_NAME}
+        namespace: ${NAMESPACE}
+      spec:
+        channel: ${CHANNEL}
+        name: ${REPO_NAME}
+        source: ${REPO_NAME}-registry
+        sourceNamespace: ${NAMESPACE}

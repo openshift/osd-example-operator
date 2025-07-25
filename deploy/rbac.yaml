@@ -1,0 +1,32 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: osd-example-operator
+rules:
+- apiGroups:
+  - managed.openshift.io
+  resources:
+  - examples
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    package-operator.run/phase: rbac
+  name: osd-example-operator-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: osd-example-operator
+subjects:
+  - kind: ServiceAccount
+    name: osd-example-operator
+    namespace: openshift-osd-example-operator
