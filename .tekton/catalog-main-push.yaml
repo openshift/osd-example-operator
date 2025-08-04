@@ -8,8 +8,8 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-cel-expression: |
       event == "push" &&
-      target_branch == "master" &&
-      ".tekton/catalog-master-push.yaml".pathChanged()
+      target_branch == "main" &&
+      ".tekton/catalog-main-push.yaml".pathChanged()
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: osd-example-operator-main
@@ -38,7 +38,7 @@ spec:
     - name: url
       value: https://github.com/openshift/boilerplate
     - name: revision
-      value: master
+      value: main
     - name: pathInRepo
       value: pipelines/catalog-builder/pipeline.yaml
     resolver: git
