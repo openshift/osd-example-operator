@@ -1,0 +1,587 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: osd-example-operator-deployment
+  namespace: argo-workflows
+  labels:
+    app: osd-example-operator
+    version: v1.0.0
+    team: sre
+spec:
+  entrypoint: deploy-pipeline
+  arguments:
+    parameters:
+    - name: app-name
+      value: "osd-example-app"
+    - name: app-version
+      value: "v1.0.0"
+    - name: int-replicas
+      value: "1"
+    - name: stage-replicas
+      value: "2"
+    - name: slack-webhook
+      value: ""
+    - name: notification-webhook
+      value: ""
+    - name: approver-email
+      value: "sre-team@redhat.com"
+    - name: enable-notifications
+      value: "false"
+    - name: enable-approval
+      value: "false"
+
+  # Global failure handling
+  onExit: notify-on-exit
+
+  templates:
+  # Main deployment pipeline
+  - name: deploy-pipeline
+    steps:
+    # Step 1: Send start notification (if enabled)
+    - - name: notify-start
+        template: send-notification
+        arguments:
+          parameters:
+          - name: message
+            value: "🚀 Starting deployment pipeline for {{workflow.parameters.app-name}} v{{workflow.parameters.app-version}}"
+          - name: status
+            value: "started"
+          - name: color
+            value: "good"
+        when: "{{workflow.parameters.enable-notifications}} == 'true'"
+
+    # Step 2: Deploy to INT environment
+    - - name: deploy-to-int
+        template: deploy-app
+        arguments:
+          parameters:
+          - name: environment
+            value: "int"
+          - name: app-name
+            value: "{{workflow.parameters.app-name}}"
+          - name: app-version
+            value: "{{workflow.parameters.app-version}}"
+          - name: replicas
+            value: "{{workflow.parameters.int-replicas}}"
+
+    # Step 3: Run E2E tests in INT
+    - - name: run-e2e-tests
+        template: execute-e2e-tests
+        arguments:
+          parameters:
+          - name: environment
+            value: "int"
+          - name: app-name
+            value: "{{workflow.parameters.app-name}}"
+          - name: app-version
+            value: "{{workflow.parameters.app-version}}"
+
+    # Step 4: Notify E2E success (if notifications enabled)
+    - - name: notify-e2e-success
+        template: send-notification
+        arguments:
+          parameters:
+          - name: message
+            value: "✅ E2E tests passed for {{workflow.parameters.app-name}} v{{workflow.parameters.app-version}} in INT"
+          - name: status
+            value: "e2e-passed"
+          - name: color
+            value: "good"
+        when: "{{workflow.parameters.enable-notifications}} == 'true'"
+
+    # Step 5: Manual approval gate (if approval enabled)
+    - - name: approval-gate
+        template: manual-approval
+        arguments:
+          parameters:
+          - name: approval-message
+            value: "E2E tests passed for {{workflow.parameters.app-name}} v{{workflow.parameters.app-version}}. Approve deployment to STAGE?"
+          - name: approver
+            value: "{{workflow.parameters.approver-email}}"
+        when: "{{workflow.parameters.enable-approval}} == 'true'"
+
+    # Step 6: Deploy to STAGE environment
+    - - name: deploy-to-stage
+        template: deploy-app
+        arguments:
+          parameters:
+          - name: environment
+            value: "stage"
+          - name: app-name
+            value: "{{workflow.parameters.app-name}}"
+          - name: app-version
+            value: "{{workflow.parameters.app-version}}"
+          - name: replicas
+            value: "{{workflow.parameters.stage-replicas}}"
+
+    # Step 7: Validate STAGE deployment
+    - - name: validate-stage
+        template: validate-deployment
+        arguments:
+          parameters:
+          - name: environment
+            value: "stage"
+          - name: app-name
+            value: "{{workflow.parameters.app-name}}"
+
+    # Step 8: Final success notification (if enabled)
+    - - name: notify-success
+        template: send-notification
+        arguments:
+          parameters:
+          - name: message
+            value: "🎉 Successfully deployed {{workflow.parameters.app-name}} v{{workflow.parameters.app-version}} to INT and STAGE!"
+          - name: status
+            value: "completed"
+          - name: color
+            value: "good"
+        when: "{{workflow.parameters.enable-notifications}} == 'true'"
+
+  # Application deployment template
+  - name: deploy-app
+    inputs:
+      parameters:
+      - name: environment
+      - name: app-name
+      - name: app-version
+      - name: replicas
+    script:
+      image: quay.io/openshift/origin-cli:latest
+      command: [bash]
+      env:
+      - name: KUBECONFIG
+        value: /tmp/kubeconfig/kubeconfig
+      - name: ENVIRONMENT
+        value: "{{inputs.parameters.environment}}"
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      volumeMounts:
+      - name: kubeconfig
+        mountPath: /tmp/kubeconfig
+        readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+          - ALL
+      source: |
+        set -euo pipefail
+        echo "=== Deploying {{inputs.parameters.app-name}} to {{inputs.parameters.environment}} ==="
+        echo "Version: {{inputs.parameters.app-version}}"
+        echo "Replicas: {{inputs.parameters.replicas}}"
+
+        # Verify kubeconfig is mounted
+        if [ ! -f "${KUBECONFIG}" ]; then
+          echo "❌ Kubeconfig not found at ${KUBECONFIG}"
+          exit 1
+        fi
+
+        echo "📋 Testing cluster connectivity..."
+        oc version --client
+
+        if ! oc cluster-info &>/dev/null; then
+          echo "❌ Cannot connect to cluster"
+          exit 1
+        fi
+
+        echo "✅ Connected to cluster successfully"
+
+        NAMESPACE="{{inputs.parameters.app-name}}-{{inputs.parameters.environment}}"
+        echo "🏗️  Target namespace: ${NAMESPACE}"
+
+        # Create namespace
+        cat <<EOF | oc apply -f -
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${NAMESPACE}
+          labels:
+            app: {{inputs.parameters.app-name}}
+            environment: {{inputs.parameters.environment}}
+            version: {{inputs.parameters.app-version}}
+            managed-by: argo-workflows
+        EOF
+
+        # Set environment-specific log level
+        if [ "{{inputs.parameters.environment}}" = "prod" ]; then
+          LOG_LEVEL="WARN"
+        else
+          LOG_LEVEL="INFO"
+        fi
+
+        # Create ConfigMap
+        cat <<EOF | oc apply -f -
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: {{inputs.parameters.app-name}}-config
+          namespace: ${NAMESPACE}
+          labels:
+            app: {{inputs.parameters.app-name}}
+            environment: {{inputs.parameters.environment}}
+            version: {{inputs.parameters.app-version}}
+        data:
+          app.properties: |
+            app.name={{inputs.parameters.app-name}}
+            app.version={{inputs.parameters.app-version}}
+            app.environment={{inputs.parameters.environment}}
+            app.replicas={{inputs.parameters.replicas}}
+            deployment.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          logging.conf: |
+            level=${LOG_LEVEL}
+            format=json
+        EOF
+
+        # Create Service
+        cat <<EOF | oc apply -f -
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: {{inputs.parameters.app-name}}
+          namespace: ${NAMESPACE}
+          labels:
+            app: {{inputs.parameters.app-name}}
+            environment: {{inputs.parameters.environment}}
+        spec:
+          selector:
+            app: {{inputs.parameters.app-name}}
+          ports:
+          - name: http
+            port: 8080
+            targetPort: 8080
+          type: ClusterIP
+        EOF
+
+        # Deploy application
+        cat <<EOF | oc apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: {{inputs.parameters.app-name}}
+          namespace: ${NAMESPACE}
+          labels:
+            app: {{inputs.parameters.app-name}}
+            environment: {{inputs.parameters.environment}}
+            version: {{inputs.parameters.app-version}}
+        spec:
+          replicas: {{inputs.parameters.replicas}}
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              maxUnavailable: 0
+              maxSurge: 1
+          selector:
+            matchLabels:
+              app: {{inputs.parameters.app-name}}
+          template:
+            metadata:
+              labels:
+                app: {{inputs.parameters.app-name}}
+                environment: {{inputs.parameters.environment}}
+                version: {{inputs.parameters.app-version}}
+            spec:
+              containers:
+              - name: app
+                image: registry.redhat.io/ubi8/ubi-minimal:latest
+                command: ["sleep", "3600"]
+                ports:
+                - containerPort: 8080
+                  name: http
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 128Mi
+                  limits:
+                    cpu: 200m
+                    memory: 256Mi
+                env:
+                - name: APP_NAME
+                  value: {{inputs.parameters.app-name}}
+                - name: APP_VERSION
+                  value: {{inputs.parameters.app-version}}
+                - name: ENVIRONMENT
+                  value: {{inputs.parameters.environment}}
+                volumeMounts:
+                - name: config
+                  mountPath: /app/config
+                readinessProbe:
+                  exec:
+                    command: ["cat", "/app/config/app.properties"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                livenessProbe:
+                  exec:
+                    command: ["ls", "/app/config"]
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+              volumes:
+              - name: config
+                configMap:
+                  name: {{inputs.parameters.app-name}}-config
+        EOF
+
+        echo "⏳ Waiting for deployment to be ready..."
+        if ! oc wait --for=condition=Available --timeout=300s deployment/{{inputs.parameters.app-name}} -n "${NAMESPACE}"; then
+          echo "❌ Deployment failed"
+          oc get events -n "${NAMESPACE}" --sort-by='.lastTimestamp'
+          exit 1
+        fi
+
+        echo "✅ Deployment to {{inputs.parameters.environment}} completed!"
+
+    volumes:
+    - name: kubeconfig
+      secret:
+        secretName: kubeconfig-{{inputs.parameters.environment}}
+        defaultMode: 0400
+
+  # E2E test execution
+  - name: execute-e2e-tests
+    inputs:
+      parameters:
+      - name: environment
+      - name: app-name
+      - name: app-version
+    script:
+      image: quay.io/openshift/origin-cli:latest
+      command: [bash]
+      env:
+      - name: KUBECONFIG
+        value: /tmp/kubeconfig/kubeconfig
+      resources:
+        limits:
+          cpu: 300m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      volumeMounts:
+      - name: kubeconfig
+        mountPath: /tmp/kubeconfig
+        readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+          - ALL
+      source: |
+        set -euo pipefail
+        echo "=== Running E2E Tests in {{inputs.parameters.environment}} ==="
+
+        NAMESPACE="{{inputs.parameters.app-name}}-{{inputs.parameters.environment}}"
+
+        # Verify kubeconfig is mounted
+        if [ ! -f "${KUBECONFIG}" ]; then
+          echo "❌ Kubeconfig not found at ${KUBECONFIG}"
+          exit 1
+        fi
+
+        echo "🧪 Running E2E test suite..."
+
+        # Test 1: Deployment readiness
+        READY_REPLICAS=$(oc get deployment {{inputs.parameters.app-name}} -n "${NAMESPACE}" -o jsonpath='{.status.readyReplicas}')
+        DESIRED_REPLICAS=$(oc get deployment {{inputs.parameters.app-name}} -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}')
+
+        if [ "$READY_REPLICAS" != "$DESIRED_REPLICAS" ]; then
+          echo "❌ E2E Test Failed: Not all replicas ready ($READY_REPLICAS/$DESIRED_REPLICAS)"
+          exit 1
+        fi
+        echo "✅ Test 1 PASSED: All replicas ready ($READY_REPLICAS/$DESIRED_REPLICAS)"
+
+        # Test 2: Pod health
+        POD_NAME=$(oc get pods -n "${NAMESPACE}" -l app={{inputs.parameters.app-name}} -o jsonpath='{.items[0].metadata.name}')
+        if [ -z "$POD_NAME" ]; then
+          echo "❌ E2E Test Failed: No pods found"
+          exit 1
+        fi
+
+        POD_STATUS=$(oc get pod "$POD_NAME" -n "${NAMESPACE}" -o jsonpath='{.status.phase}')
+        if [ "$POD_STATUS" != "Running" ]; then
+          echo "❌ E2E Test Failed: Pod not running ($POD_STATUS)"
+          exit 1
+        fi
+        echo "✅ Test 2 PASSED: Pod $POD_NAME is running"
+
+        # Test 3: Configuration accessibility
+        if ! oc exec -n "${NAMESPACE}" "$POD_NAME" -- cat /app/config/app.properties &>/dev/null; then
+          echo "❌ E2E Test Failed: Configuration not accessible"
+          exit 1
+        fi
+        echo "✅ Test 3 PASSED: Configuration accessible"
+
+        # Test 4: Service connectivity
+        if ! oc get service {{inputs.parameters.app-name}} -n "${NAMESPACE}" &>/dev/null; then
+          echo "❌ E2E Test Failed: Service not found"
+          exit 1
+        fi
+        echo "✅ Test 4 PASSED: Service available"
+
+        echo "🎉 All E2E tests passed in {{inputs.parameters.environment}}!"
+
+    volumes:
+    - name: kubeconfig
+      secret:
+        secretName: kubeconfig-{{inputs.parameters.environment}}
+        defaultMode: 0400
+
+  # Manual approval gate
+  - name: manual-approval
+    inputs:
+      parameters:
+      - name: approval-message
+      - name: approver
+    suspend: {}
+
+  # Post-deployment validation
+  - name: validate-deployment
+    inputs:
+      parameters:
+      - name: environment
+      - name: app-name
+    script:
+      image: quay.io/openshift/origin-cli:latest
+      command: [bash]
+      env:
+      - name: KUBECONFIG
+        value: /tmp/kubeconfig/kubeconfig
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      volumeMounts:
+      - name: kubeconfig
+        mountPath: /tmp/kubeconfig
+        readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+          - ALL
+      source: |
+        set -euo pipefail
+        echo "=== Post-deployment validation in {{inputs.parameters.environment}} ==="
+
+        NAMESPACE="{{inputs.parameters.app-name}}-{{inputs.parameters.environment}}"
+
+        # Verify kubeconfig is mounted
+        if [ ! -f "${KUBECONFIG}" ]; then
+          echo "❌ Kubeconfig not found at ${KUBECONFIG}"
+          exit 1
+        fi
+
+        # Validate deployment health
+        if ! oc get deployment {{inputs.parameters.app-name}} -n "${NAMESPACE}" &>/dev/null; then
+          echo "❌ Deployment not found"
+          exit 1
+        fi
+
+        READY_REPLICAS=$(oc get deployment {{inputs.parameters.app-name}} -n "${NAMESPACE}" -o jsonpath='{.status.readyReplicas}')
+        DESIRED_REPLICAS=$(oc get deployment {{inputs.parameters.app-name}} -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}')
+
+        if [ "$READY_REPLICAS" != "$DESIRED_REPLICAS" ]; then
+          echo "❌ Post-deployment validation failed: $READY_REPLICAS/$DESIRED_REPLICAS ready"
+          exit 1
+        fi
+
+        echo "✅ Post-deployment validation passed!"
+        echo "📊 Final deployment status:"
+        oc get pods -n "${NAMESPACE}" -l app={{inputs.parameters.app-name}}
+
+    volumes:
+    - name: kubeconfig
+      secret:
+        secretName: kubeconfig-{{inputs.parameters.environment}}
+        defaultMode: 0400
+
+  # Notification template
+  - name: send-notification
+    inputs:
+      parameters:
+      - name: message
+      - name: status
+      - name: color
+        value: "good"
+    script:
+      image: curlimages/curl:latest
+      command: [sh]
+      resources:
+        limits:
+          cpu: 100m
+          memory: 64Mi
+        requests:
+          cpu: 10m
+          memory: 32Mi
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+          - ALL
+      source: |
+        set -euo pipefail
+        echo "📢 Sending notification: {{inputs.parameters.message}}"
+
+        # Send Slack notification if webhook is configured
+        if [ -n "{{workflow.parameters.slack-webhook}}" ]; then
+          echo "Sending Slack notification..."
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "text": "{{inputs.parameters.message}}",
+              "attachments": [{
+                "color": "{{inputs.parameters.color}}",
+                "fields": [
+                  {"title": "Workflow", "value": "{{workflow.name}}", "short": true},
+                  {"title": "Status", "value": "{{inputs.parameters.status}}", "short": true},
+                  {"title": "App", "value": "{{workflow.parameters.app-name}}", "short": true},
+                  {"title": "Version", "value": "{{workflow.parameters.app-version}}", "short": true}
+                ]
+              }]
+            }' \
+            "{{workflow.parameters.slack-webhook}}" || echo "Failed to send Slack notification"
+        fi
+
+        # Send generic webhook notification if configured
+        if [ -n "{{workflow.parameters.notification-webhook}}" ]; then
+          echo "Sending generic webhook notification..."
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "message": "{{inputs.parameters.message}}",
+              "status": "{{inputs.parameters.status}}",
+              "workflow": "{{workflow.name}}",
+              "app_name": "{{workflow.parameters.app-name}}",
+              "app_version": "{{workflow.parameters.app-version}}"
+            }' \
+            "{{workflow.parameters.notification-webhook}}" || echo "Failed to send webhook notification"
+        fi
+
+        echo "✅ Notification processing completed"
+
+  # Exit handler for failure notifications
+  - name: notify-on-exit
+    steps:
+    - - name: send-failure-notification
+        template: send-notification
+        arguments:
+          parameters:
+          - name: message
+            value: "❌ Deployment pipeline {{workflow.status}} for {{workflow.parameters.app-name}} v{{workflow.parameters.app-version}}"
+          - name: status
+            value: "{{workflow.status}}"
+          - name: color
+            value: "danger"
+        when: "{{workflow.status}} != 'Succeeded' && {{workflow.parameters.enable-notifications}} == 'true'"
