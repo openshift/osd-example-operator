@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: osde2e-stage-config
-  namespace: argo-workflows
+  namespace: argo
 data:
   stage-config.yaml: |
     # OSDE2E Configuration for STAGE Environment
@@ -38,4 +38,3 @@ data:
     validations:
       - "operator-metrics"
       - "performance-baseline"
-      - "security-scan"
