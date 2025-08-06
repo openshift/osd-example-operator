@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: osde2e-int-config
-  namespace: argo-workflows
+  namespace: argo
 data:
   int-config.yaml: |
     # OSDE2E Configuration for INT Environment
