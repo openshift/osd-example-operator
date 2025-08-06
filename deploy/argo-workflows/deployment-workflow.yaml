@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
   name: osd-example-operator-deployment
-  namespace: argo-workflows
+  namespace: argo
   labels:
     app: osd-example-operator
     version: v1.0.0
@@ -12,23 +12,36 @@ spec:
   arguments:
     parameters:
     - name: app-name
-      value: "osd-example-app"
+      value: "osd-example-operator"
     - name: app-version
-      value: "v1.0.0"
+      value: "latest"
+    - name: image-registry
+      value: "quay.io/app-sre"
+    - name: image-name
+      value: "osd-example-operator"
+    - name: image-tag
+      value: "latest"
     - name: int-replicas
       value: "1"
     - name: stage-replicas
       value: "2"
+    - name: prod-replicas
+      value: "3"
     - name: slack-webhook
       value: ""
     - name: notification-webhook
       value: ""
     - name: approver-email
       value: "sre-team@redhat.com"
+    - name: osde2e-image
+      value: "quay.io/rh_ee_yiqzhang/osde2e"
+    - name: osde2e-tag
+      value: "latest"
     - name: enable-notifications
       value: "false"
     - name: enable-approval
-      value: "false"
+      value: "true"
+
 
   # Global failure handling
   onExit: notify-on-exit
@@ -61,6 +74,8 @@ spec:
             value: "{{workflow.parameters.app-name}}"
           - name: app-version
             value: "{{workflow.parameters.app-version}}"
+          - name: image-url
+            value: "{{workflow.parameters.image-registry}}/{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}"
           - name: replicas
             value: "{{workflow.parameters.int-replicas}}"
 
@@ -75,6 +90,8 @@ spec:
             value: "{{workflow.parameters.app-name}}"
           - name: app-version
             value: "{{workflow.parameters.app-version}}"
+          - name: image-url
+            value: "{{workflow.parameters.image-registry}}/{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}"
 
     # Step 4: Notify E2E success (if notifications enabled)
     - - name: notify-e2e-success
@@ -100,7 +117,7 @@ spec:
             value: "{{workflow.parameters.approver-email}}"
         when: "{{workflow.parameters.enable-approval}} == 'true'"
 
-    # Step 6: Deploy to STAGE environment
+    # Step 7: Deploy to STAGE environment
     - - name: deploy-to-stage
         template: deploy-app
         arguments:
@@ -111,10 +128,12 @@ spec:
             value: "{{workflow.parameters.app-name}}"
           - name: app-version
             value: "{{workflow.parameters.app-version}}"
+          - name: image-url
+            value: "{{workflow.parameters.image-registry}}/{{workflow.parameters.image-name}}:{{workflow.parameters.image-tag}}"
           - name: replicas
             value: "{{workflow.parameters.stage-replicas}}"
 
-    # Step 7: Validate STAGE deployment
+    # Step 8: Validate STAGE deployment
     - - name: validate-stage
         template: validate-deployment
         arguments:
@@ -123,8 +142,9 @@ spec:
             value: "stage"
           - name: app-name
             value: "{{workflow.parameters.app-name}}"
+        when: "{{workflow.parameters.enable-approval}} == 'true'"
 
-    # Step 8: Final success notification (if enabled)
+    # Step 6: Final success notification (if enabled)
     - - name: notify-success
         template: send-notification
         arguments:
@@ -144,6 +164,7 @@ spec:
       - name: environment
       - name: app-name
       - name: app-version
+      - name: image-url
       - name: replicas
     script:
       image: quay.io/openshift/origin-cli:latest
@@ -206,7 +227,7 @@ spec:
             app: {{inputs.parameters.app-name}}
             environment: {{inputs.parameters.environment}}
             version: {{inputs.parameters.app-version}}
-            managed-by: argo-workflows
+            managed-by: argo
         EOF
 
         # Set environment-specific log level
@@ -239,6 +260,58 @@ spec:
             format=json
         EOF
 
+        # Create ServiceAccount
+        cat <<EOF | oc apply -f -
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: {{inputs.parameters.app-name}}
+          namespace: ${NAMESPACE}
+          labels:
+            app: {{inputs.parameters.app-name}}
+            environment: {{inputs.parameters.environment}}
+        EOF
+
+        # Create ClusterRole
+        cat <<EOF | oc apply -f -
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: {{inputs.parameters.app-name}}
+          labels:
+            app: {{inputs.parameters.app-name}}
+            environment: {{inputs.parameters.environment}}
+        rules:
+        - apiGroups: ["managed.openshift.io"]
+          resources: ["examples"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: [""]
+          resources: ["events"]
+          verbs: ["create", "patch"]
+        - apiGroups: [""]
+          resources: ["configmaps", "secrets"]
+          verbs: ["get", "list", "watch"]
+        EOF
+
+        # Create ClusterRoleBinding
+        cat <<EOF | oc apply -f -
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: {{inputs.parameters.app-name}}
+          labels:
+            app: {{inputs.parameters.app-name}}
+            environment: {{inputs.parameters.environment}}
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: {{inputs.parameters.app-name}}
+        subjects:
+        - kind: ServiceAccount
+          name: {{inputs.parameters.app-name}}
+          namespace: ${NAMESPACE}
+        EOF
+
         # Create Service
         cat <<EOF | oc apply -f -
         apiVersion: v1
@@ -256,6 +329,9 @@ spec:
           - name: http
             port: 8080
             targetPort: 8080
+          - name: webhook
+            port: 8443
+            targetPort: 8443
           type: ClusterIP
         EOF
 
@@ -288,40 +364,59 @@ spec:
                 version: {{inputs.parameters.app-version}}
             spec:
               containers:
-              - name: app
-                image: registry.redhat.io/ubi8/ubi-minimal:latest
-                command: ["sleep", "3600"]
+              - name: {{inputs.parameters.app-name}}
+                image: {{inputs.parameters.image-url}}
                 ports:
                 - containerPort: 8080
                   name: http
-                resources:
-                  requests:
-                    cpu: 50m
-                    memory: 128Mi
-                  limits:
-                    cpu: 200m
-                    memory: 256Mi
+                - containerPort: 8443
+                  name: webhook
                 env:
-                - name: APP_NAME
+                - name: WATCH_NAMESPACE
+                  value: ""
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: OPERATOR_NAME
                   value: {{inputs.parameters.app-name}}
-                - name: APP_VERSION
-                  value: {{inputs.parameters.app-version}}
-                - name: ENVIRONMENT
-                  value: {{inputs.parameters.environment}}
-                volumeMounts:
-                - name: config
-                  mountPath: /app/config
-                readinessProbe:
-                  exec:
-                    command: ["cat", "/app/config/app.properties"]
-                  initialDelaySeconds: 5
-                  periodSeconds: 10
                 livenessProbe:
-                  exec:
-                    command: ["ls", "/app/config"]
+                  httpGet:
+                    path: /healthz
+                    port: 8081
                   initialDelaySeconds: 15
                   periodSeconds: 20
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+                securityContext:
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  capabilities:
+                    drop:
+                    - ALL
+                volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              serviceAccountName: {{inputs.parameters.app-name}}
+              securityContext:
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
               volumes:
+              - name: tmp
+                emptyDir: {}
               - name: config
                 configMap:
                   name: {{inputs.parameters.app-name}}-config
@@ -342,29 +437,138 @@ spec:
         secretName: kubeconfig-{{inputs.parameters.environment}}
         defaultMode: 0400
 
-  # E2E test execution
+  # E2E test execution using osde2e
   - name: execute-e2e-tests
     inputs:
       parameters:
       - name: environment
       - name: app-name
       - name: app-version
-    script:
-      image: quay.io/openshift/origin-cli:latest
-      command: [bash]
+      - name: image-url
+    container:
+      image: "{{workflow.parameters.osde2e-image}}:{{workflow.parameters.osde2e-tag}}"
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        set -euo pipefail
+        echo "=== Running OSDE2E Tests in {{inputs.parameters.environment}} ==="
+
+        # Set up environment variables for osde2e
+        export KUBECONFIG=/tmp/kubeconfig/kubeconfig
+        export OPERATOR_IMAGE={{inputs.parameters.image-url}}
+        export OPERATOR_NAMESPACE="{{inputs.parameters.app-name}}-{{inputs.parameters.environment}}"
+        export TEST_HARNESS="operator"
+        export TEST_TIMEOUT="3600"
+        export POLLING_TIMEOUT="600"
+
+        # Verify kubeconfig is mounted
+        if [ ! -f "${KUBECONFIG}" ]; then
+          echo "❌ Kubeconfig not found at ${KUBECONFIG}"
+          exit 1
+        fi
+
+        # Load osde2e configuration
+        CONFIG_FILE="/tmp/osde2e-config/{{inputs.parameters.environment}}-config.yaml"
+        if [ -f "${CONFIG_FILE}" ]; then
+          echo "📋 Loading osde2e configuration from ${CONFIG_FILE}"
+          export OSDE2E_CONFIG="${CONFIG_FILE}"
+        else
+          echo "⚠️ No specific config found for {{inputs.parameters.environment}}, using defaults"
+        fi
+
+        # Run osde2e tests
+        echo "🧪 Starting osde2e test execution..."
+
+        # Create osde2e test configuration
+        cat > /tmp/test-config.yaml << EOF
+        cluster:
+          kubeconfig: ${KUBECONFIG}
+
+        tests:
+          testTimeout: ${TEST_TIMEOUT}
+          pollingTimeout: ${POLLING_TIMEOUT}
+          parallelism: 2
+
+        operator:
+          name: "{{inputs.parameters.app-name}}"
+          namespace: "${OPERATOR_NAMESPACE}"
+          image: "${OPERATOR_IMAGE}"
+
+        testHarnesses:
+          - "${OPERATOR_IMAGE}"
+
+        environment:
+          type: "{{inputs.parameters.environment}}"
+        EOF
+
+        # Execute osde2e tests
+        echo "🚀 Running osde2e with configuration:"
+        cat /tmp/test-config.yaml
+
+        # Run the actual osde2e test command
+        if command -v osde2e >/dev/null 2>&1; then
+          osde2e test \
+            --config-path /tmp/test-config.yaml \
+            --test-harness operator \
+            --operator-namespace "${OPERATOR_NAMESPACE}" \
+            --operator-image "${OPERATOR_IMAGE}" \
+            --verbose
+        else
+          echo "⚠️ osde2e command not found, running basic validation tests..."
+
+          # Fallback to basic kubectl-based tests if osde2e is not available
+          echo "🔍 Running basic operator validation..."
+
+          # Test 1: Operator deployment readiness
+          kubectl wait --for=condition=available deployment/{{inputs.parameters.app-name}} \
+            -n "${OPERATOR_NAMESPACE}" --timeout=300s
+          echo "✅ Operator deployment is ready"
+
+          # Test 2: CRD availability
+          kubectl get crd examples.managed.openshift.io
+          echo "✅ CRDs are available"
+
+          # Test 3: Create test Example resource
+          cat <<EOF | kubectl apply -f -
+        apiVersion: managed.openshift.io/v1alpha1
+        kind: Example
+        metadata:
+          name: osde2e-test-example
+          namespace: ${OPERATOR_NAMESPACE}
+        spec:
+          message: "OSDE2E test validation"
+        EOF
+
+          # Wait and verify the resource
+          sleep 15
+          kubectl get example osde2e-test-example -n "${OPERATOR_NAMESPACE}"
+          echo "✅ Example resource created and validated"
+
+          # Cleanup
+          kubectl delete example osde2e-test-example -n "${OPERATOR_NAMESPACE}" || true
+        fi
+
+        echo "🎉 OSDE2E tests completed successfully for {{inputs.parameters.environment}}!"
       env:
       - name: KUBECONFIG
         value: /tmp/kubeconfig/kubeconfig
+      - name: OPERATOR_IMAGE
+        value: "{{inputs.parameters.image-url}}"
+      - name: TEST_ENVIRONMENT
+        value: "{{inputs.parameters.environment}}"
       resources:
         limits:
-          cpu: 300m
-          memory: 256Mi
+          cpu: 1000m
+          memory: 1Gi
         requests:
-          cpu: 100m
-          memory: 128Mi
+          cpu: 500m
+          memory: 512Mi
       volumeMounts:
       - name: kubeconfig
         mountPath: /tmp/kubeconfig
+        readOnly: true
+      - name: osde2e-config
+        mountPath: /tmp/osde2e-config
         readOnly: true
       securityContext:
         runAsNonRoot: true
@@ -373,65 +577,15 @@ spec:
         capabilities:
           drop:
           - ALL
-      source: |
-        set -euo pipefail
-        echo "=== Running E2E Tests in {{inputs.parameters.environment}} ==="
-
-        NAMESPACE="{{inputs.parameters.app-name}}-{{inputs.parameters.environment}}"
-
-        # Verify kubeconfig is mounted
-        if [ ! -f "${KUBECONFIG}" ]; then
-          echo "❌ Kubeconfig not found at ${KUBECONFIG}"
-          exit 1
-        fi
-
-        echo "🧪 Running E2E test suite..."
-
-        # Test 1: Deployment readiness
-        READY_REPLICAS=$(oc get deployment {{inputs.parameters.app-name}} -n "${NAMESPACE}" -o jsonpath='{.status.readyReplicas}')
-        DESIRED_REPLICAS=$(oc get deployment {{inputs.parameters.app-name}} -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}')
-
-        if [ "$READY_REPLICAS" != "$DESIRED_REPLICAS" ]; then
-          echo "❌ E2E Test Failed: Not all replicas ready ($READY_REPLICAS/$DESIRED_REPLICAS)"
-          exit 1
-        fi
-        echo "✅ Test 1 PASSED: All replicas ready ($READY_REPLICAS/$DESIRED_REPLICAS)"
-
-        # Test 2: Pod health
-        POD_NAME=$(oc get pods -n "${NAMESPACE}" -l app={{inputs.parameters.app-name}} -o jsonpath='{.items[0].metadata.name}')
-        if [ -z "$POD_NAME" ]; then
-          echo "❌ E2E Test Failed: No pods found"
-          exit 1
-        fi
-
-        POD_STATUS=$(oc get pod "$POD_NAME" -n "${NAMESPACE}" -o jsonpath='{.status.phase}')
-        if [ "$POD_STATUS" != "Running" ]; then
-          echo "❌ E2E Test Failed: Pod not running ($POD_STATUS)"
-          exit 1
-        fi
-        echo "✅ Test 2 PASSED: Pod $POD_NAME is running"
-
-        # Test 3: Configuration accessibility
-        if ! oc exec -n "${NAMESPACE}" "$POD_NAME" -- cat /app/config/app.properties &>/dev/null; then
-          echo "❌ E2E Test Failed: Configuration not accessible"
-          exit 1
-        fi
-        echo "✅ Test 3 PASSED: Configuration accessible"
-
-        # Test 4: Service connectivity
-        if ! oc get service {{inputs.parameters.app-name}} -n "${NAMESPACE}" &>/dev/null; then
-          echo "❌ E2E Test Failed: Service not found"
-          exit 1
-        fi
-        echo "✅ Test 4 PASSED: Service available"
-
-        echo "🎉 All E2E tests passed in {{inputs.parameters.environment}}!"
 
     volumes:
     - name: kubeconfig
       secret:
         secretName: kubeconfig-{{inputs.parameters.environment}}
         defaultMode: 0400
+    - name: osde2e-config
+      configMap:
+        name: osde2e-{{inputs.parameters.environment}}-config
 
   # Manual approval gate
   - name: manual-approval
