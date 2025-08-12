@@ -1,0 +1,103 @@
+---
+# Create dedicated service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: osde2e-workflow
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+
+---
+# Create ClusterRole - define required permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: osde2e-workflow-role
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+rules:
+# Basic cluster information read permissions
+- apiGroups: [""]
+  resources: ["services", "endpoints", "nodes"]
+  verbs: ["get", "list"]
+
+# Deployment management permissions (in argo namespace)
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+
+# Pod management permissions
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "pods/status"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+
+# Event viewing permissions
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list"]
+
+# Namespace management permissions
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "create"]
+
+# ConfigMap and Secret permissions (if needed)
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+---
+# Bind ClusterRole to ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: osde2e-workflow-binding
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+subjects:
+- kind: ServiceAccount
+  name: osde2e-workflow
+  namespace: argo
+roleRef:
+  kind: ClusterRole
+  name: osde2e-workflow-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Create more fine-grained Role for argo namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: osde2e-argo-namespace-role
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+rules:
+# Full permissions in argo namespace
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+# Bind argo namespace Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: osde2e-argo-namespace-binding
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+subjects:
+- kind: ServiceAccount
+  name: osde2e-workflow
+  namespace: argo
+roleRef:
+  kind: Role
+  name: osde2e-argo-namespace-role
+  apiGroup: rbac.authorization.k8s.io
