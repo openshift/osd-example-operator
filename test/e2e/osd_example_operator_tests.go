@@ -3,8 +3,15 @@
 
 package osde2etests
 
-import "github.com/onsi/ginkgo/v2"
+import (
+	"context"
 
-var _ = ginkgo.Describe("osd-example-operator", func() {
-	//	 Add your tests
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+var _ = Describe("osd-example-operator", func() {
+	It("asserts success", func(ctx context.Context) {
+		Expect(true).To(BeTrue(), "True should be true")
+	})
 })
