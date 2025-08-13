@@ -49,6 +49,10 @@ rules:
   resources: ["configmaps", "secrets"]
   verbs: ["get", "list"]
 
+- apiGroups: ["hive.openshift.io"]
+  resources: ["selectorsyncsets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+
 ---
 # Bind ClusterRole to ServiceAccount
 apiVersion: rbac.authorization.k8s.io/v1

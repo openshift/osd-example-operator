@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OSDE2E Environment Setup Script
-# Sets up all required resources for OSDE2E quality gate
+# Sets up all required resources for OSDE2E test gate
 
 set -euo pipefail
 
@@ -120,7 +120,7 @@ verify_setup() {
     fi
 
     # Check WorkflowTemplate
-    if ! kubectl get workflowtemplate gate -n "$NAMESPACE" &> /dev/null; then
+    if ! kubectl get workflowtemplate osde2e-gate -n "$NAMESPACE" &> /dev/null; then
         log_error "WorkflowTemplate 'gate' not found"
         return 1
     fi
