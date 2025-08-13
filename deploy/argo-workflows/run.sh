@@ -8,13 +8,19 @@ set -euo pipefail
 NAMESPACE="argo"
 TEMPLATE_NAME="osde2e-gate"
 
-# Known available clusters (from your manual verification)
-KNOWN_CLUSTERS=(
-    "2kk0mgm8jnpap7fa8pc35rktfjj879m9:osde2e-u9027"
-    "2kk4fjvp5b9ti4e23i2ju77ilo9l3n39:osde2e-4la9q"
-    "2kk4j2q4k6bneq4e1jl2volsknvhjq24:osde2e-mn1i1"
-    "2kk4jsv39vmidgnskbh87oc6u309dn0l:osde2e-8p8he"
-)
+# Function to get ready OSDE2E clusters dynamically
+get_ready_osde2e_clusters() {
+    if command -v ocm &> /dev/null; then
+        ocm list clusters --parameter search="name like 'osde2e%'" --columns id,name,state 2>/dev/null | grep "ready" | while read -r line; do
+            local id=$(echo "$line" | awk '{print $1}')
+            local name=$(echo "$line" | awk '{print $2}')
+            echo "$id:$name"
+        done
+    else
+        # Fallback to known clusters if OCM CLI not available
+        echo "2kkvrahmjbd8173k74e5t9gcl07noo1o:osde2e-19x8g "
+    fi
+}
 
 # Default images
 DEFAULT_TEST_HARNESS="quay.io/rh_ee_yiqzhang/splunk-forwarder-operator-e2e:latest"
@@ -56,15 +62,20 @@ show_help() {
 }
 
 list_known_clusters() {
-    echo "🔍 Known Available OSDE2E Clusters"
+    echo "🔍 Available Ready OSDE2E Clusters"
     echo "=================================="
-    echo ""
-    echo "ID                               NAME"
-    echo "-------------------------------- ---------------"
+    printf "%-32s %s\n" "ID" "NAME"
+    printf "%-32s %s\n" "--------------------------------" "---------------"
 
-    for cluster in "${KNOWN_CLUSTERS[@]}"; do
-        local id="${cluster%:*}"
-        local name="${cluster#*:}"
+    local clusters=$(get_ready_osde2e_clusters)
+    if [ -z "$clusters" ]; then
+        echo "No ready OSDE2E clusters found"
+        echo ""
+        echo "💡 Use './manage-osde2e-clusters.sh list-available' to see all clusters"
+        return 1
+    fi
+
+    echo "$clusters" | while IFS=':' read -r id name; do
         printf "%-32s %s\n" "$id" "$name"
     done
 
@@ -77,8 +88,22 @@ list_known_clusters() {
 }
 
 pick_random_cluster() {
-    local random_index=$((RANDOM % ${#KNOWN_CLUSTERS[@]}))
-    local selected_cluster="${KNOWN_CLUSTERS[$random_index]}"
+    local clusters=$(get_ready_osde2e_clusters)
+    if [ -z "$clusters" ]; then
+        log_error "No ready OSDE2E clusters available"
+        echo ""
+        echo "💡 Try: './manage-osde2e-clusters.sh pick-ready' to auto-select a cluster"
+        exit 1
+    fi
+
+    # Convert to array and pick random
+    local cluster_array=()
+    while IFS=':' read -r id name; do
+        cluster_array+=("$id:$name")
+    done <<< "$clusters"
+
+    local random_index=$((RANDOM % ${#cluster_array[@]}))
+    local selected_cluster="${cluster_array[$random_index]}"
     local cluster_id="${selected_cluster%:*}"
     local cluster_name="${selected_cluster#*:}"
 
@@ -140,7 +165,7 @@ run_gate() {
 
     local workflow_name="osde2e-gate-$(date +%s)"
 
-    log_info "🚀 Starting OSDE2E Quality Gate test..."
+    log_info "🚀 Starting OSDE2E Test Gate test..."
     log_info "Test harness image: $test_harness"
     log_info "OSDE2E image: $osde2e_image"
     log_info "Cluster ID: $cluster_id"
