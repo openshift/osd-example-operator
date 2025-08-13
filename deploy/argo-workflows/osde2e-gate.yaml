@@ -20,7 +20,7 @@ spec:
     - name: kubectl-image
       value: "quay.io/openshift/origin-cli:latest"
     - name: ocm-cluster-id
-      value: "2kjhcu00tne378o2lkcb1pbqt7gqmf7p"
+      value: "2kkhbldime8jv0s12sdkvflnvg7mbqm2"
     - name: test-timeout
       value: "3600"
 
@@ -44,8 +44,6 @@ spec:
       - "rosa,sts,int,ad-hoc-image"
       - --skip-must-gather
       - --skip-destroy-cluster
-      - --cluster-id
-      - "{{workflow.parameters.ocm-cluster-id}}"
 
       env:
       # OCM configuration (from Secret)
@@ -105,11 +103,17 @@ spec:
         value: "true"
       - name: CLUSTER_UP
         value: "false"
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.ocm-cluster-id}}"
       - name: TEST_TIMEOUT
         value: "{{workflow.parameters.test-timeout}}"
       - name: SKIP_CLUSTER_HEALTH_CHECK
         value: "true"
       - name: SKIP_MUST_GATHER
+        value: "true"
+      - name: CLUSTER_PROVISION
+        value: "false"
+      - name: SKIP_CLUSTER_WAIT
         value: "true"
 
       resources:
@@ -144,31 +148,18 @@ spec:
         set -e
 
         # Success message
-        echo "🎉 Quality Gate SUCCESS - Ready for production!"
+        echo "🎉 Test Gate SUCCESS - Ready for production!"
         echo "✅ Image: {{workflow.parameters.test-harness-image}}"
         echo "🔗 Cluster: {{workflow.parameters.ocm-cluster-id}}"
 
+        # Simple Slack success notification
         TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
         DURATION="{{workflow.duration}}"
 
+        MESSAGE="✅ OSDE2E Test Gate PASSED!\\n📦 Image{{workflow.parameters.test-harness-image}}\\n🔗 Cluster{{workflow.parameters.ocm-cluster-id}}\\n🌍 Environment INT\\n⏱️ Duration $DURATION\\n🕐 Time $TIMESTAMP\\n📋 Workflow {{workflow.name}}\\n🚀 Status Ready for Production"
+
         curl -X POST -H 'Content-type: application/json' \
-             --data '{
-               "text": "✅ OSDE2E Quality Gate PASSED!",
-               "attachments": [{
-                 "color": "good",
-                 "fields": [
-                   {"title": "Image", "value": "{{workflow.parameters.test-harness-image}}", "short": false},
-                   {"title": "Cluster", "value": "{{workflow.parameters.ocm-cluster-id}}", "short": true},
-                   {"title": "Environment", "value": "INT", "short": true},
-                   {"title": "Duration", "value": "'$DURATION'", "short": true},
-                   {"title": "Timestamp", "value": "'$TIMESTAMP'", "short": true},
-                   {"title": "Workflow", "value": "{{workflow.name}}", "short": true},
-                   {"title": "Status", "value": "Ready for Production 🚀", "short": true}
-                 ],
-                 "footer": "OSDE2E Quality Gate",
-                 "footer_icon": "https://github.com/openshift.png"
-               }]
-             }' \
+             --data "{\"text\":\"$MESSAGE\"}" \
              "${SLACK_WEBHOOK_URL}"
 
         if [ $? -eq 0 ]; then
@@ -206,50 +197,38 @@ spec:
 
         # Only notify on actual failure, not success
         if [ "{{workflow.status}}" != "Succeeded" ]; then
-          echo "❌ Quality Gate FAILED!"
+          echo "❌ Test Gate FAILED!"
           echo "💥 Image: {{workflow.parameters.test-harness-image}}"
           echo "🔗 Cluster: {{workflow.parameters.ocm-cluster-id}}"
           echo "📊 Status: {{workflow.status}}"
           echo "🔍 Logs: argo logs {{workflow.name}} -n argo"
 
-                  # Enhanced Slack failure notification
-        TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-        DURATION="{{workflow.duration}}"
+          # Simple Slack failure notification
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          DURATION="{{workflow.duration}}"
 
-        curl -X POST -H 'Content-type: application/json' \
-             --data '{
-               "text": "❌ OSDE2E Quality Gate FAILED!",
-               "attachments": [{
-                 "color": "danger",
-                 "fields": [
-                   {"title": "Image", "value": "{{workflow.parameters.test-harness-image}}", "short": false},
-                   {"title": "Cluster", "value": "{{workflow.parameters.ocm-cluster-id}}", "short": true},
-                   {"title": "Environment", "value": "INT", "short": true},
-                   {"title": "Status", "value": "{{workflow.status}}", "short": true},
-                   {"title": "Duration", "value": "'$DURATION'", "short": true},
-                   {"title": "Timestamp", "value": "'$TIMESTAMP'", "short": true},
-                   {"title": "Workflow", "value": "{{workflow.name}}", "short": true},
-                   {"title": "Logs", "value": "argo logs {{workflow.name}} -n argo", "short": false}
-                 ],
-                 "footer": "OSDE2E Quality Gate",
-                 "footer_icon": "https://github.com/openshift.png"
-               }]
-             }' \
-             "${SLACK_WEBHOOK_URL}"
+          MESSAGE="❌ OSDE2E Test Gate FAILED!\\n💥 Image{{workflow.parameters.test-harness-image}}\\n🔗 Cluster{{workflow.parameters.ocm-cluster-id}}\\n🌍 Environment INT\\n📊 Status {{workflow.status}}\\n⏱️ Duration $DURATION\\n🕐 Time $TIMESTAMP\\n📋 Workflow {{workflow.name}}\\n🔍 Logs argo logs {{workflow.name}} -n argo"
 
-        if [ $? -eq 0 ]; then
-          echo "✅ Slack failure notification sent"
-        else
-          echo "⚠️ Slack notification failed (exit code: $?)"
-          echo "📝 Webhook URL: ${SLACK_WEBHOOK_URL}"
-        fi
+          curl -X POST -H 'Content-type: application/json' \
+               --data "{\"text\":\"$MESSAGE\"}" \
+               "${SLACK_WEBHOOK_URL}"
+
+          if [ $? -eq 0 ]; then
+            echo "✅ Slack failure notification sent"
+          else
+            echo "⚠️ Slack notification failed (exit code: $?)"
+            echo "📝 Webhook URL: ${SLACK_WEBHOOK_URL}"
+          fi
         else
           echo "ℹ️ Workflow succeeded, no failure notification needed"
         fi
 
       env:
       - name: SLACK_WEBHOOK_URL
-        value: https://hooks.slack.com/services/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
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: slack-webhook-url
 
       resources:
         requests:
