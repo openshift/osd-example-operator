@@ -4,36 +4,68 @@
 
 ## 📋 Overview
 
-This system provides an automated test gate that:
-- ✅ Runs comprehensive OSDE2E tests on existing OpenShift clusters
-- 🧪 Validates your operator images before production deployment
-- 📢 Sends rich Slack notifications with detailed test results
-- 🎯 Acts as a reliable gate for CI/CD pipelines
+This system provides a comprehensive automated test gate that validates your operators before production deployment:
+
+- **🧪 Automated Testing**: Runs OSDE2E tests on existing OpenShift clusters using your test harness
+- **⚡ Quick Setup**: One-command setup with `./setup.sh` or step-by-step manual configuration
+- **🔗 CI/CD Integration**: Acts as a reliable gate for GitLab CI, GitHub Actions, and other pipelines
+- **📊 Rich Notifications**: Sends detailed Slack notifications with test results, links, and status
+- **🛡️ Production Ready**: Includes RBAC, secrets management, and comprehensive error handling
 
 ## 📁 Repository Structure
 
 ```
 deploy/argo-workflows/
-├── README.md           # 📖 This comprehensive guide
-├── osde2e-gate.yaml   # 🎯 Main WorkflowTemplate
-├── rbac.yaml          # 🛡️ RBAC permissions for service accounts
-├── secrets.yaml       # 🔐 Credentials and configuration template
-└── verify-setup.sh    # ✅ Environment health checker
+├── README.md                    # 📖 This comprehensive guide
+├── osde2e-workflow.yaml         # 🎯 Main WorkflowTemplate (test pipeline)
+├── secrets.yaml                 # 🔐 Credentials template
+├── rbac.yaml                    # 🛡️ RBAC permissions
+├── setup.sh                     # 🔧 Automated setup script
+├── run.sh                       # ⚡ Quick test runner
+├── ui.sh                        # 🖥️ UI access management
+└── verify-setup.sh               # ✅ Health checker
 ```
 
-## 🚀 Quick Start Guide
+## 🚀 Quick Start
 
 ### Prerequisites
 
-Before you begin, ensure you have:
-- ✅ Access to an OpenShift cluster with Argo Workflows installed
-- ✅ `kubectl` CLI configured and connected to your cluster
-- ✅ `argo` CLI installed ([Installation Guide](https://argoproj.github.io/argo-workflows/cli/))
-- ✅ OCM (OpenShift Cluster Manager) credentials
-- ✅ AWS credentials for cluster access
-- ✅ Your operator test harness image built and pushed to a registry
+Ensure you have the following before starting:
 
-## 📝 Step-by-Step Setup Instructions
+| Requirement | Description | Status |
+|-------------|-------------|---------|
+| **Kubernetes Cluster** | OpenShift cluster with admin access | Required |
+| **kubectl CLI** | Configured and connected to your cluster | Required |
+| **Argo Workflows** | Installed on the cluster | Auto-installed |
+| **Argo CLI** | [Installation Guide](https://argoproj.github.io/argo-workflows/cli/) | Optional |
+| **Credentials** | OCM + AWS credentials from vault | Required |
+| **Test Image** | Your operator E2E test harness image | Required |
+
+### Option 1: Automated Setup (Recommended)
+
+Get started in under 5 minutes:
+
+```bash
+# 1. Run automated setup
+./setup.sh
+
+# 2. Configure your credentials (see secrets-setup-guide.md)
+cp secrets.yaml secrets-local.yaml
+# Edit secrets-local.yaml with your real credentials
+kubectl apply -f secrets-local.yaml
+
+# 3. Access Argo UI
+./ui.sh --background
+
+# 4. Run your first test
+./run.sh
+```
+
+### Option 2: Manual Setup
+
+For step-by-step control, follow the detailed manual setup below.
+
+## 📝 Step-by-Step Setup Instructions (Manual)
 
 ### Step 1: Install Argo Workflows (if not already installed)
 
@@ -42,23 +74,69 @@ Before you begin, ensure you have:
 kubectl create namespace argo
 
 # Install Argo Workflows
-kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.8/install.yaml
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.7.0/install.yaml
 
 # Wait for pods to be ready
 kubectl wait --for=condition=ready pod -l app=argo-server -n argo --timeout=300s
 ```
 
-### Step 2: Configure Access to Argo UI (Optional)
+### Step 2: Configure Argo Server for UI Access
 
 ```bash
-# Port forward to access the UI
-kubectl port-forward svc/argo-server 2746:2746 -n argo &
+# First, check if argo-server service exists
+kubectl get svc -n argo
 
-# Open in browser: https://localhost:2746
-# Note: You may need to bypass SSL warnings in your browser
+# Configure argo-server deployment to run in insecure mode (for local development)
+kubectl patch deployment argo-server -n argo --type='json' -p='[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/args/-",
+    "value": "--auth-mode=server"
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/args/-",
+    "value": "--secure=false"
+  }
+]'
+
+# Wait for argo-server to restart
+kubectl rollout status deployment/argo-server -n argo --timeout=120s
 ```
 
-### Step 3: Set Up RBAC Permissions
+### Step 3: Access the Argo UI
+
+**Option A: Using the UI management script (Recommended)**
+
+```bash
+# Open UI with automatic issue fixing
+./ui.sh --fix
+
+# Or use other options:
+./ui.sh                    # Open UI (foreground)
+./ui.sh --background       # Run in background
+./ui.sh --port 8080        # Use custom port
+./ui.sh --help             # Show all options
+```
+
+The script will automatically:
+- Fix common UI access issues
+- Set up port forwarding
+- Test connectivity
+- Open the UI at http://localhost:2746
+
+**Option B: Manual port forwarding**
+
+```bash
+# Start port forwarding manually
+kubectl port-forward svc/argo-server 2746:2746 -n argo &
+
+# Open browser to http://localhost:2746
+```
+
+**Having Issues?** See the comprehensive [Troubleshooting](#-troubleshooting) section below.
+
+### Step 4: Set Up RBAC Permissions
 
 ```bash
 # Apply the service account and RBAC permissions
@@ -68,7 +146,7 @@ kubectl apply -f rbac.yaml
 kubectl get serviceaccount osde2e-workflow -n argo
 ```
 
-### Step 4: Configure Credentials
+### Step 5: Configure Credentials
 
 1. **Copy the secrets template:**
    ```bash
@@ -103,17 +181,17 @@ kubectl get serviceaccount osde2e-workflow -n argo
    kubectl apply -f secrets-local.yaml
    ```
 
-### Step 5: Deploy the Workflow Template
+### Step 6: Deploy the Workflow Template
 
 ```bash
 # Apply the main workflow template
-kubectl apply -f osde2e-gate.yaml
+kubectl apply -f osde2e-workflow.yaml
 
 # Verify the template was created
-kubectl get workflowtemplate osde2e-gate -n argo
+kubectl get workflowtemplate osde2e-workflow -n argo
 ```
 
-### Step 6: Verify Your Setup
+### Step 7: Verify Your Setup
 
 ```bash
 # Run the verification script
@@ -122,320 +200,419 @@ kubectl get workflowtemplate osde2e-gate -n argo
 # Check that all resources are ready
 kubectl get all -n argo
 kubectl get secrets osde2e-credentials -n argo
-kubectl get workflowtemplate osde2e-gate -n argo
+kubectl get workflowtemplate osde2e-workflow -n argo
 ```
 
-## 🎯 Running the Test Gate
+## 🎯 Running Tests
 
-### Method 1: Using Argo CLI (Recommended)
+Once setup is complete, you can run tests in several ways:
+
+### Quick Test Run (Recommended)
 
 ```bash
-# Submit a new workflow instance
-argo submit --from workflowtemplate/osde2e-gate -n argo --name "osde2e-gate-$(date +%s)"
+# Run test with default settings
+./run.sh
 
-# Watch the workflow progress
-argo watch osde2e-gate-XXXXX -n argo
+# Run with custom images
+./run.sh quay.io/your-org/operator:v1.0.0 quay.io/your-org/e2e-tests:v1.0.0
+
+# Run with specific cluster
+./run.sh [OPERATOR_IMAGE] [TEST_HARNESS_IMAGE] [CLUSTER_ID]
+```
+
+### Advanced Test Options
+
+**Using Argo CLI:**
+```bash
+# Submit and watch workflow
+argo submit --from workflowtemplate/osde2e-workflow -n argo \
+  -p test-harness-image="quay.io/your-org/e2e:latest" \
+  --name "test-$(date +%s)" \
+  --watch
 
 # View logs in real-time
-argo logs osde2e-gate-XXXXX -n argo -f
+argo logs WORKFLOW_NAME -n argo -f
 ```
 
-### Method 2: Using kubectl
-
+**Using kubectl:**
 ```bash
-# Create a workflow instance file
-cat <<EOF > test-workflow.yaml
+# Create workflow from template
+kubectl create -f - <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  generateName: quality-gate-
+  generateName: osde2e-test-
   namespace: argo
 spec:
   workflowTemplateRef:
-    name: osde2e-gate
+    name: osde2e-workflow
   arguments:
     parameters:
     - name: test-harness-image
-      value: "quay.io/your-org/your-operator-e2e:latest"
+      value: "quay.io/your-org/e2e:latest"
+    - name: ocm-cluster-id
+      value: "your-cluster-id"
 EOF
-
-# Submit the workflow
-kubectl apply -f test-workflow.yaml
 ```
 
-### Method 3: Custom Parameters
-
+**Custom Parameters:**
 ```bash
-# Submit with custom test image
-argo submit --from workflowtemplate/osde2e-gate -n argo \
-  -p test-harness-image="quay.io/your-org/custom-test:v1.2.3" \
-  -p ocm-cluster-id="your-specific-cluster-id" \
-  --name "custom-quality-gate-$(date +%s)"
+# Override default parameters
+argo submit --from workflowtemplate/osde2e-workflow -n argo \
+  -p operator-image="quay.io/your-org/operator:v2.0.0" \
+  -p test-harness-image="quay.io/your-org/e2e:v2.0.0" \
+  -p ocm-cluster-id="your-cluster-id" \
+  -p test-timeout="7200" \
+  --name "custom-test-$(date +%s)"
 ```
 
-## 📊 Understanding the Workflow
+## 📊 How It Works
 
-### Workflow Steps
+### Test Pipeline Overview
 
-1. **🧪 OSDE2E Test Gate Test**
-   - Connects to the specified OCM cluster using credentials
-   - Deploys your test harness image to the cluster
-   - Runs comprehensive OSDE2E tests
-   - Validates operator functionality
+The workflow executes a comprehensive 6-step test pipeline:
 
-2. **🎉 Success Notification**
-   - Sends detailed Slack notification on success
-   - Includes test duration, cluster info, and promotion status
-   - Marks the image as ready for production
+1. **Deploy Operator** → Deploys your operator image to the target cluster
+2. **Wait for Readiness** → Ensures operator is running and healthy
+3. **Run OSDE2E Tests** → Executes your test harness against the operator
+4. **Collect Results** → Gathers test outputs and logs
+5. **Send Notifications** → Notifies via Slack with results and links
+6. **Cleanup** → Removes test resources (optional)
 
-3. **❌ Failure Handling**
-   - Automatically triggered on any failure
-   - Sends detailed error information to Slack
-   - Includes troubleshooting commands and logs
+### Configurable Parameters
 
-### Key Parameters
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| `operator-image` | Your operator container image | `quay.io/rh_ee_yiqzhang/osd-example-operator:latest` |
+| `test-harness-image` | Your E2E test container image | `quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857` |
+| `ocm-cluster-id` | Target OpenShift cluster ID | `2kp3cq9o9klem4rrdcm3evp5kf009v0n` |
+| `test-timeout` | Maximum test duration | `3600` seconds (1 hour) |
+| `cleanup-on-failure` | Clean up resources on failure | `true` |
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `test-harness-image` | Your operator E2E test image | `quay.io/rh_ee_yiqzhang/osd-example-operator-e2e:latest` |
-| `osde2e-image` | OSDE2E runner image | `quay.io/rh_ee_yiqzhang/osde2e:latest` |
-| `ocm-cluster-id` | Target cluster ID | `2kjhcu00tne378o2lkcb1pbqt7gqmf7p` |
-| `test-timeout` | Test timeout in seconds | `3600` (1 hour) |
+### Test Results & Notifications
 
-## 📢 Slack Notifications
+- **Success**: Slack notification with test summary, duration, and "Ready for Production" status
+- **Failure**: Detailed error information with links to logs and troubleshooting steps
+- **Always**: Test results are displayed in workflow logs regardless of notification settings
 
-### Setup Slack Integration
+## 📢 Slack Notifications (Optional)
 
-1. **Create a Slack App:**
-   - Go to [Slack API Apps](https://api.slack.com/apps)
-   - Click "Create New App" → "From scratch"
-   - Name your app (e.g., "OSDE2E Test Gate")
-   - Select your workspace
+### Quick Setup
 
-2. **Enable Incoming Webhooks:**
-   - In your app settings, go to "Incoming Webhooks"
-   - Toggle "Activate Incoming Webhooks" to On
-   - Click "Add New Webhook to Workspace"
-   - Select the channel for notifications
+1. **Create Slack Webhook:**
+   - Visit [Slack API Apps](https://api.slack.com/apps) → "Create New App"
+   - Enable "Incoming Webhooks" and create webhook for your channel
    - Copy the webhook URL
 
-3. **Configure the Webhook:**
+2. **Configure Notifications:**
    ```bash
-   # Update the secret with your webhook URL
+   # Add webhook URL to secrets
    kubectl patch secret osde2e-credentials -n argo --type='merge' \
      -p='{"stringData":{"slack-webhook-url":"https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}}'
    ```
 
-### Notification Features
+### What You'll Get
 
-- ✅ **Success Notifications**: Rich formatted messages with test results
-- ❌ **Failure Notifications**: Detailed error information and debugging commands
-- 📊 **Structured Data**: Includes image, cluster, duration, and status information
-- 🎨 **Visual Formatting**: Color-coded messages with OpenShift branding
+- **Success Messages**: Test summary with duration, cluster links, and "Ready for Production" status
+- **Failure Alerts**: Error details with direct links to workflow logs and troubleshooting info
+- **Rich Formatting**: Clickable links to OCM clusters, Argo workflows, and test logs
 
 ## 🔍 Troubleshooting
 
-### Common Issues and Solutions
+### Quick Diagnosis
 
-#### 1. Workflow Fails to Start
+```bash
+# Check overall system health
+./verify-setup.sh
 
-**Symptoms:** Workflow shows "Pending" status indefinitely
+# Check Argo UI access
+./ui.sh --fix
 
-**Solutions:**
+# Check recent workflows
+argo list -n argo
+
+# Check specific workflow
+argo get WORKFLOW_NAME -n argo
+argo logs WORKFLOW_NAME -n argo
+```
+
+### Common Issues by Category
+
+#### 🖥️ Argo UI Access Issues
+
+**Problem: Cannot access Argo UI**
+```bash
+# Check argo-server status
+kubectl get pods -n argo -l app=argo-server
+
+# Check logs for errors
+kubectl logs -n argo -l app=argo-server --tail=20
+
+# Fix common issues automatically
+./ui.sh --fix
+```
+
+**Problem: Pod in CrashLoopBackOff with "unknown field auth"**
+```bash
+# Remove incorrect auth configuration
+kubectl patch configmap workflow-controller-configmap -n argo --type='json' \
+  -p='[{"op": "remove", "path": "/data/config"}]'
+
+# Restart argo-server
+kubectl rollout restart deployment/argo-server -n argo
+kubectl rollout status deployment/argo-server -n argo --timeout=120s
+```
+
+#### 🚀 Workflow Execution Issues
+
+**Problem: Workflow stuck in "Pending" status**
 ```bash
 # Check RBAC permissions
 kubectl get serviceaccount osde2e-workflow -n argo
 kubectl describe clusterrolebinding osde2e-workflow-binding
 
-# Check if secrets exist
+# Check secrets exist
 kubectl get secret osde2e-credentials -n argo
 
 # Verify workflow template
-kubectl get workflowtemplate osde2e-gate -n argo -o yaml
+kubectl get workflowtemplate osde2e-workflow -n argo
 ```
 
-#### 2. OCM Authentication Errors
-
-**Symptoms:** Errors like "invalid_grant: Invalid refresh token"
-
-**Solutions:**
+**Problem: "ImagePullBackOff" or "ErrImagePull" errors**
 ```bash
-# Verify OCM credentials in secret
+# Verify test image exists and is accessible
+docker pull YOUR_TEST_HARNESS_IMAGE
+
+# Check if registry credentials are needed
+kubectl describe pod POD_NAME -n argo
+
+# Update workflow with imagePullSecrets if required
+```
+
+#### 🔐 Authentication Issues
+
+**Problem: OCM authentication failures**
+```bash
+# Check OCM credentials
 kubectl get secret osde2e-credentials -n argo -o yaml
 
-# Check if cluster ID is correct
-# Contact your cluster administrator for valid credentials
+# Verify cluster ID is correct
+# Get correct values from vault: ocm/ocm-client-id, ocm/ocm-client-secret
+
+# Update credentials if needed
+kubectl patch secret osde2e-credentials -n argo --type='merge' \
+  -p='{"stringData":{"ocm-client-id":"NEW_VALUE"}}'
 ```
 
-#### 3. Test Image Pull Failures
-
-**Symptoms:** "ImagePullBackOff" or "ErrImagePull" errors
-
-**Solutions:**
+**Problem: AWS/ROSA authentication failures**
 ```bash
-# Verify image exists and is accessible
-docker pull quay.io/your-org/your-test:tag
+# Check AWS credentials
+kubectl get secret osde2e-credentials -n argo -o jsonpath='{.data.aws-access-key-id}' | base64 -d
 
-# Check if image registry credentials are needed
-# Update the workflow template with imagePullSecrets if required
+# Verify credentials from vault: sdcicd_aws/
+# Update if needed
+kubectl patch secret osde2e-credentials -n argo --type='merge' \
+  -p='{"stringData":{"aws-access-key-id":"NEW_VALUE"}}'
 ```
 
-#### 4. Slack Notifications Not Working
+#### 📢 Notification Issues
 
-**Symptoms:** Workflow completes but no Slack messages received
-
-**Solutions:**
+**Problem: No Slack notifications received**
 ```bash
-# Check webhook URL in secret
+# Check webhook URL
 kubectl get secret osde2e-credentials -n argo -o jsonpath='{.data.slack-webhook-url}' | base64 -d
 
 # Test webhook manually
+WEBHOOK_URL=$(kubectl get secret osde2e-credentials -n argo -o jsonpath='{.data.slack-webhook-url}' | base64 -d)
 curl -X POST -H 'Content-type: application/json' \
-  --data '{"text":"Test message from OSDE2E Test Gate"}' \
-  YOUR_WEBHOOK_URL
+  --data '{"text":"Test from OSDE2E"}' "$WEBHOOK_URL"
 
-# Check workflow logs for notification step
-argo logs WORKFLOW_NAME -n argo
+# Check workflow notification logs
+argo logs WORKFLOW_NAME -n argo | grep -A 10 -B 5 "notification"
 ```
 
-### Debug Commands
+### Advanced Debugging
 
+**Step-by-step diagnosis:**
 ```bash
-# List all workflows
-argo list -n argo
-
-# Get workflow details
-argo get WORKFLOW_NAME -n argo
-
-# View workflow logs
-argo logs WORKFLOW_NAME -n argo -f
-
-# Check workflow events
-kubectl describe workflow WORKFLOW_NAME -n argo
-
-# View all resources
+# 1. Check system components
 kubectl get all -n argo
 kubectl get secrets -n argo
 kubectl get workflowtemplates -n argo
+
+# 2. Examine specific workflow
+argo list -n argo                    # List all workflows
+argo get WORKFLOW_NAME -n argo       # Get workflow details
+argo logs WORKFLOW_NAME -n argo -f   # Follow logs in real-time
+
+# 3. Check workflow events and status
+kubectl describe workflow WORKFLOW_NAME -n argo
+kubectl get workflow WORKFLOW_NAME -n argo -o yaml
+
+# 4. Debug failed pods
+kubectl get pods -n argo | grep Failed
+kubectl describe pod POD_NAME -n argo
+kubectl logs POD_NAME -n argo
 ```
 
-## 🔧 Customization
+### Getting Help
 
-### Using Your Own Test Image
+If issues persist after trying the solutions above:
 
-1. **Build your E2E test image:**
+1. **Collect diagnostic information:**
    ```bash
-   # Example Dockerfile for your test harness
-   FROM registry.redhat.io/ubi8/ubi:latest
-   COPY your-test-binary /usr/local/bin/
-   ENTRYPOINT ["/usr/local/bin/your-test-binary"]
+   # Run health check
+   ./verify-setup.sh > diagnosis.txt
+
+   # Get workflow details
+   argo get WORKFLOW_NAME -n argo >> diagnosis.txt
+
+   # Get recent logs
+   argo logs WORKFLOW_NAME -n argo >> diagnosis.txt
    ```
 
-2. **Update the workflow parameter:**
-   ```bash
-   argo submit --from workflowtemplate/osde2e-gate -n argo \
-     -p test-harness-image="quay.io/your-org/your-test:v1.0.0"
-   ```
+2. **Check common solutions:**
+   - Verify all credentials are current and valid
+   - Ensure test harness image is accessible
+   - Confirm cluster ID is correct
+   - Test Slack webhook manually
 
-### Adding Custom Environment Variables
+3. **Contact support** with the diagnostic information and specific error messages
 
-Edit `osde2e-gate.yaml` and add to the `run-osde2e-test` template:
+## 🔧 Customization & CI/CD Integration
+
+### Custom Test Images
+
+```bash
+# Use your own test harness image
+./run.sh quay.io/your-org/operator:v1.0.0 quay.io/your-org/e2e-tests:v1.0.0
+
+# Or via Argo CLI
+argo submit --from workflowtemplate/osde2e-workflow -n argo \
+  -p operator-image="quay.io/your-org/operator:v1.0.0" \
+  -p test-harness-image="quay.io/your-org/e2e-tests:v1.0.0"
+```
+
+### Environment Variables
+
+Add custom environment variables by editing `osde2e-workflow.yaml`:
 
 ```yaml
+# In the run-real-osde2e-test template
 env:
-- name: YOUR_CUSTOM_VAR
-  value: "your-value"
+- name: CUSTOM_VAR
+  value: "custom-value"
 - name: SECRET_VAR
   valueFrom:
     secretKeyRef:
       name: osde2e-credentials
-      key: your-secret-key
+      key: custom-secret-key
 ```
 
-## 📈 CI/CD Integration
+### Pipeline Integration Examples
 
-### GitLab CI Example
-
+**GitLab CI:**
 ```yaml
-osde2e-quality-gate:
+osde2e-test-gate:
   stage: test
   image: bitnami/kubectl:latest
   before_script:
-    - curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.8/argo-linux-amd64.gz
+    - curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.7.0/argo-linux-amd64.gz
     - gunzip argo-linux-amd64.gz && chmod +x argo-linux-amd64 && mv argo-linux-amd64 /usr/local/bin/argo
   script:
     - |
-      WORKFLOW_NAME="quality-gate-${CI_PIPELINE_ID}"
-      argo submit --from workflowtemplate/osde2e-gate -n argo \
-        -p test-harness-image="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}" \
-        --name "${WORKFLOW_NAME}" \
-        --wait
-  only:
-    - main
-    - merge_requests
+      argo submit --from workflowtemplate/osde2e-workflow -n argo \
+        -p operator-image="${CI_REGISTRY_IMAGE}/operator:${CI_COMMIT_SHA}" \
+        -p test-harness-image="${CI_REGISTRY_IMAGE}/e2e:${CI_COMMIT_SHA}" \
+        --name "test-${CI_PIPELINE_ID}" --wait
+  only: [main, merge_requests]
 ```
 
-### GitHub Actions Example
-
+**GitHub Actions:**
 ```yaml
 name: OSDE2E Test Gate
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+on: [push, pull_request]
 
 jobs:
-  quality-gate:
+  test-gate:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Install Argo CLI
+    - uses: actions/checkout@v4
+    - name: Setup Argo CLI
       run: |
-        curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.8/argo-linux-amd64.gz
-        gunzip argo-linux-amd64.gz
-        chmod +x argo-linux-amd64
-        sudo mv argo-linux-amd64 /usr/local/bin/argo
-
+        curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.7.0/argo-linux-amd64.gz
+        gunzip argo-linux-amd64.gz && chmod +x argo-linux-amd64 && sudo mv argo-linux-amd64 /usr/local/bin/argo
     - name: Configure kubectl
       uses: azure/k8s-set-context@v1
       with:
         kubeconfig: ${{ secrets.KUBECONFIG }}
-
     - name: Run Test Gate
       run: |
-        WORKFLOW_NAME="quality-gate-${GITHUB_RUN_ID}"
-        argo submit --from workflowtemplate/osde2e-gate -n argo \
-          -p test-harness-image="ghcr.io/${{ github.repository }}:${{ github.sha }}" \
-          --name "${WORKFLOW_NAME}" \
-          --wait
+        argo submit --from workflowtemplate/osde2e-workflow -n argo \
+          -p operator-image="ghcr.io/${{ github.repository }}/operator:${{ github.sha }}" \
+          -p test-harness-image="ghcr.io/${{ github.repository }}/e2e:${{ github.sha }}" \
+          --name "test-${{ github.run_id }}" --wait
 ```
 
-## 📚 Additional Resources
+**Jenkins Pipeline:**
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('OSDE2E Test Gate') {
+            steps {
+                script {
+                    sh """
+                        argo submit --from workflowtemplate/osde2e-workflow -n argo \
+                          -p operator-image="${DOCKER_REGISTRY}/operator:${BUILD_NUMBER}" \
+                          -p test-harness-image="${DOCKER_REGISTRY}/e2e:${BUILD_NUMBER}" \
+                          --name "test-${BUILD_NUMBER}" --wait
+                    """
+                }
+            }
+        }
+    }
+}
+```
 
-- 📖 [Argo Workflows Documentation](https://argoproj.github.io/argo-workflows/)
-- 🧪 [OSDE2E Testing Framework](https://github.com/openshift/osde2e)
-- 🏗️ [OpenShift Operator Development](https://docs.openshift.com/container-platform/latest/operators/operator_sdk/osdk-about.html)
-- 💬 [Slack API Documentation](https://api.slack.com/messaging/webhooks)
+## 📚 Resources & Links
 
-## 🆘 Getting Help
-
-If you encounter issues:
-
-1. **Run the verification script:** `./verify-setup.sh`
-2. **Check the troubleshooting section** above
-3. **Review workflow logs:** `argo logs WORKFLOW_NAME -n argo`
-4. **Contact the platform team** with specific error messages
+- **Documentation**: [Argo Workflows](https://argoproj.github.io/argo-workflows/) | [OSDE2E Framework](https://github.com/openshift/osde2e)
+- **Development**: [OpenShift Operators](https://docs.openshift.com/container-platform/latest/operators/operator_sdk/osdk-about.html)
+- **Notifications**: [Slack Webhooks](https://api.slack.com/messaging/webhooks)
 
 ---
 
-## 🎯 Summary
+## 🚀 Quick Reference
 
-This test gate provides a robust, automated testing solution that:
-- ✅ Validates operator functionality on real OpenShift clusters
-- 🚀 Integrates seamlessly with CI/CD pipelines
-- 📢 Provides rich notifications and feedback
-- 🛡️ Acts as a reliable gate before production deployments
+### Essential Commands
 
-**Ready to ensure quality with confidence!** 🚀
+```bash
+# Setup (one-time)
+./setup.sh                          # Automated setup
+./ui.sh --background                 # Access Argo UI
+
+# Testing
+./run.sh                             # Run test with defaults
+./run.sh [OPERATOR] [TESTS] [CLUSTER] # Custom test run
+
+# Management
+./verify-setup.sh                    # Health check
+./ui.sh --fix                        # Fix UI issues
+argo list -n argo                    # List workflows
+```
+
+### Key Files
+
+- `osde2e-workflow.yaml` - Main test pipeline
+- `secrets.yaml` - Credentials template (copy to `secrets-local.yaml`)
+- `run.sh` - Quick test runner
+- `ui.sh` - UI access management
+
+### Support
+
+- 📖 **Detailed Setup**: See `secrets-setup-guide.md`
+- 🔍 **Troubleshooting**: Check the troubleshooting section above
+- 🌐 **Argo UI**: http://localhost:2746 (after running `./ui.sh`)
+
+**Production-ready OSDE2E testing with confidence!** ✨

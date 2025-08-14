@@ -1,0 +1,555 @@
+# OSDE2E Test Gate - Argo WorkflowTemplate
+# Automated operator testing on ROSA clusters
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: osde2e-workflow
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    version: v1.0.0
+    purpose: osde2e-testing
+spec:
+  serviceAccountName: osde2e-workflow
+  entrypoint: deploy-then-osde2e-pipeline
+  onExit: failure-notification
+
+  # Default parameters (override with -p flag)
+  arguments:
+    parameters:
+    - name: operator-image
+      value: "quay.io/rh_ee_yiqzhang/osd-example-operator:latest"
+    - name: test-harness-image
+      value: "quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857"
+    - name: operator-name
+      value: "osd-example-operator"
+    - name: operator-namespace
+      value: "argo"
+    - name: osde2e-image
+      value: "quay.io/rh_ee_yiqzhang/osde2e:latest"
+    - name: kubectl-image
+      value: "quay.io/openshift/origin-cli:latest"
+    - name: ocm-cluster-id
+      value: "2kp3cq9o9klem4rrdcm3evp5kf009v0n"
+    - name: test-timeout
+      value: "3600"
+    - name: cleanup-on-failure
+      value: "true"
+
+  templates:
+  # Main test pipeline: deploy -> wait -> test -> collect -> notify -> cleanup
+  - name: deploy-then-osde2e-pipeline
+    steps:
+    - - name: deploy-operator
+        template: deploy-operator
+    - - name: wait-for-deployment
+        template: wait-for-deployment
+    - - name: run-real-osde2e-test
+        template: run-real-osde2e-test
+    - - name: collect-test-results
+        template: collect-test-results
+        when: "{{steps.run-real-osde2e-test.status}} != Skipped"
+    - - name: promote-and-notify
+        template: promote-and-notify
+        when: "{{steps.run-real-osde2e-test.status}} == Succeeded"
+    - - name: cleanup-deployment
+        template: cleanup-deployment
+        when: "{{workflow.parameters.cleanup-on-failure}} == true || {{steps.run-real-osde2e-test.status}} == Succeeded"
+
+  # Step 1: Deploy operator and CRD
+  - name: deploy-operator
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Deploying {{workflow.parameters.operator-name}} to {{workflow.parameters.operator-namespace}}"
+
+        # Install CRD first if not exists
+        echo "Installing Example CRD..."
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        metadata:
+          name: examples.managed.openshift.io
+        spec:
+          group: managed.openshift.io
+          versions:
+          - name: v1alpha1
+            served: true
+            storage: true
+            schema:
+              openAPIV3Schema:
+                type: object
+                properties:
+                  spec:
+                    type: object
+                  status:
+                    type: object
+          scope: Namespaced
+          names:
+            plural: examples
+            singular: example
+            kind: Example
+        EOF
+
+        echo "CRD installation complete, deploying operator..."
+
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+          namespace: {{workflow.parameters.operator-namespace}}
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+        rules:
+        - apiGroups: [""]
+          resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["apps"]
+          resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["apiextensions.k8s.io"]
+          resources: ["customresourcedefinitions"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["managed.openshift.io"]
+          resources: ["*"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: {{workflow.parameters.operator-name}}
+        subjects:
+        - kind: ServiceAccount
+          name: {{workflow.parameters.operator-name}}
+          namespace: {{workflow.parameters.operator-namespace}}
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+          namespace: {{workflow.parameters.operator-namespace}}
+          labels:
+            app: {{workflow.parameters.operator-name}}
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: {{workflow.parameters.operator-name}}
+          template:
+            metadata:
+              labels:
+                app: {{workflow.parameters.operator-name}}
+            spec:
+              serviceAccountName: {{workflow.parameters.operator-name}}
+              containers:
+              - name: operator
+                image: {{workflow.parameters.operator-image}}
+                imagePullPolicy: Always
+                env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: WATCH_NAMESPACE
+                  value: ""
+                ports:
+                - containerPort: 8081
+                  name: metrics
+                - containerPort: 8443
+                  name: webhook
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 30
+                  periodSeconds: 20
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                securityContext:
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["ALL"]
+        EOF
+        echo "Operator deployment configuration applied"
+
+  # Step 2: Wait for operator deployment
+  - name: wait-for-deployment
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Waiting for {{workflow.parameters.operator-name}} deployment to be ready..."
+        kubectl rollout status deployment/{{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --timeout=600s
+        kubectl wait --for=condition=ready pod -l app={{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --timeout=300s
+        echo "Operator successfully deployed and running"
+
+  # Step 3: Run OSDE2E tests with AWS authentication
+  - name: run-real-osde2e-test
+    initContainers:
+    - name: setup-aws-credentials
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        set -euo pipefail
+        echo "Setting up AWS credentials for ROSA CLI..."
+
+        # Create AWS credentials directory
+        mkdir -p /shared/.aws
+
+        # Create credentials file
+        cat > /shared/.aws/credentials <<EOF
+        [default]
+        aws_access_key_id = ${AWS_ACCESS_KEY_ID}
+        aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}
+        EOF
+
+        # Create config file
+        cat > /shared/.aws/config <<EOF
+        [default]
+        region = ${AWS_DEFAULT_REGION}
+        output = json
+        EOF
+
+        # Set proper permissions
+        chmod 600 /shared/.aws/credentials /shared/.aws/config
+
+        echo "AWS credentials configured successfully"
+        ls -la /shared/.aws/
+      env:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-secret-access-key
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      volumeMounts:
+      - name: aws-credentials
+        mountPath: /shared
+    container:
+      image: "{{workflow.parameters.osde2e-image}}"
+      command: ["/osde2e"]
+      args:
+      - test
+      - --configs
+      - "rosa,int,ad-hoc-image"
+      - --skip-must-gather
+      - --skip-destroy-cluster
+      - --skip-health-check
+      volumeMounts:
+      - name: aws-credentials
+        mountPath: /tmp
+
+      env:
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.ocm-cluster-id}}"
+
+      # Keep client credentials as backup
+      - name: OCM_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: ocm-client-id
+      - name: OCM_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: ocm-client-secret
+
+      # AWS authentication (standard OSDE2E environment variables)
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-secret-access-key
+      - name: AWS_ACCOUNT_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-account-id
+      - name: AWS_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      - name: AWS_PROFILE
+        value: "default"
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      - name: AD_HOC_TEST_IMAGES
+        value: "{{workflow.parameters.test-harness-image}}"
+      # ROSA/OpenShift configuration
+      - name: PROVIDER
+        value: "rosa"
+      - name: OCM_ENV
+        value: "int"
+      - name: OCM_URL
+        value: "https://api.integration.openshift.com"
+
+      # AWS credentials file paths
+      - name: AWS_SHARED_CREDENTIALS_FILE
+        value: "/tmp/.aws/credentials"
+      - name: AWS_CONFIG_FILE
+        value: "/tmp/.aws/config"
+      - name: HOME
+        value: "/tmp"
+
+      # Cluster configuration
+      - name: USE_EXISTING_CLUSTER
+        value: "true"
+      - name: SKIP_DESTROY_CLUSTER
+        value: "true"
+      - name: SKIP_CLUSTER_HEALTH_CHECK
+        value: "true"
+
+      # Report configuration
+      - name: REPORT_DIR
+        value: "/tmp/osde2e-reports"
+
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+
+      securityContext:
+        runAsNonRoot: true   # Match OSDE2E template security requirements
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+
+    volumes:
+    - name: aws-credentials
+      emptyDir: {}
+
+    # Artifacts removed to avoid storage requirements
+    # Test results are displayed in logs instead
+
+  # Step 4: Collect and display test results
+  - name: collect-test-results
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Displaying OSDE2E Test Results..."
+
+        REPORT_DIR="/tmp/osde2e-reports"
+
+        echo "OSDE2E Test Results Summary"
+        echo "==========================="
+        echo "Timestamp: $(date -u)"
+        echo "Operator: {{workflow.parameters.operator-image}}"
+        echo "Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo "Cluster: {{workflow.parameters.ocm-cluster-id}}"
+        echo ""
+
+        if [ -d "$REPORT_DIR" ]; then
+          echo "[SUCCESS] Found test results directory: $REPORT_DIR"
+          ls -la "$REPORT_DIR/" || true
+
+          # Show test output log if exists
+          if [ -f "$REPORT_DIR/test_output.log" ]; then
+            echo ""
+            echo "[INFO] Test Output Log (last 50 lines):"
+            echo "===================================="
+            tail -50 "$REPORT_DIR/test_output.log" || true
+            echo "===================================="
+          fi
+
+          echo "[SUCCESS] Test results displayed in logs above"
+        else
+          echo "[ERROR] Test results directory not found at $REPORT_DIR"
+          find /tmp -type d -name "*test*" 2>/dev/null | head -5 || true
+        fi
+
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+
+  # Step 6: Cleanup deployment resources
+  - name: cleanup-deployment
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Cleaning up deployment resources..."
+        kubectl delete deployment {{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --ignore-not-found=true
+        kubectl delete clusterrolebinding {{workflow.parameters.operator-name}} --ignore-not-found=true
+        kubectl delete clusterrole {{workflow.parameters.operator-name}} --ignore-not-found=true
+        kubectl delete serviceaccount {{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --ignore-not-found=true
+
+        # Don't delete argo namespace as it's an existing system namespace
+        echo "Cleanup complete (preserving namespace: {{workflow.parameters.operator-namespace}})"
+
+
+  # Step 5: Success notification
+  - name: promote-and-notify
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        # Success message
+        echo "OSDE2E Test Gate SUCCESS - Ready for production!"
+        echo "Operator Image: {{workflow.parameters.operator-image}}"
+        echo "Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo "Cluster: {{workflow.parameters.ocm-cluster-id}}"
+        echo "Workflow: {{workflow.name}}"
+
+        # Simple Slack success notification
+        TIMESTAMP=$(TZ='America/New_York' date +"%Y-%m-%d %H:%M:%S EST")
+        DURATION=$(echo "{{workflow.duration}}" | sed 's/\.[0-9]*s/s/')
+
+        # Create clickable links
+        OCM_CLUSTER_LINK="https://console.redhat.com/openshift/details/{{workflow.parameters.ocm-cluster-id}}"
+        WORKFLOW_LINK="https://argo-workflows.your-domain.com/workflows/argo/{{workflow.name}}"
+        LOGS_LINK="https://argo-workflows.your-domain.com/workflows/argo/{{workflow.name}}/logs"
+
+        MESSAGE="[SUCCESS] OSDE2E Test Gate PASSED!\\n\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nCluster: <$OCM_CLUSTER_LINK|{{workflow.parameters.ocm-cluster-id}}>\\nEnvironment: INT\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nLogs: <$LOGS_LINK|View Logs>\\nStatus: Ready for Production"
+
+        if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+          curl -X POST -H 'Content-type: application/json' \
+               --data "{\"text\":\"$MESSAGE\"}" \
+               "${SLACK_WEBHOOK_URL}"
+
+          if [ $? -eq 0 ]; then
+            echo "Slack success notification sent"
+          else
+            echo "WARNING: Slack notification failed (exit code: $?)"
+            echo "[DEBUG] Webhook URL: ${SLACK_WEBHOOK_URL}"
+          fi
+        else
+          echo "INFO: No Slack webhook configured, skipping notification"
+        fi
+
+      env:
+      - name: SLACK_WEBHOOK_URL
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: slack-webhook-url
+            optional: true
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+
+  # OnExit: Failure notification (triggered on any failure)
+  - name: failure-notification
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        # Only notify on actual failure, not success
+        if [ "{{workflow.status}}" != "Succeeded" ]; then
+          echo "OSDE2E Test Gate FAILED!"
+          echo "Operator Image: {{workflow.parameters.operator-image}}"
+          echo "Test Harness: {{workflow.parameters.test-harness-image}}"
+          echo "Cluster: {{workflow.parameters.ocm-cluster-id}}"
+          echo "Status: {{workflow.status}}"
+          echo "Logs: argo logs {{workflow.name}} -n argo"
+
+          # Simple Slack failure notification
+          TIMESTAMP=$(TZ='America/New_York' date +"%Y-%m-%d %H:%M:%S EST")
+          DURATION=$(echo "{{workflow.duration}}" | sed 's/\.[0-9]*s/s/')
+
+          # Create clickable links
+          OCM_CLUSTER_LINK="https://console.redhat.com/openshift/details/{{workflow.parameters.ocm-cluster-id}}"
+          WORKFLOW_LINK="https://argo-workflows.your-domain.com/workflows/argo/{{workflow.name}}"
+          LOGS_LINK="https://argo-workflows.your-domain.com/workflows/argo/{{workflow.name}}/logs"
+
+          MESSAGE="[FAILED] OSDE2E Test Gate FAILED!\\n\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nCluster: <$OCM_CLUSTER_LINK|{{workflow.parameters.ocm-cluster-id}}>\\nEnvironment: INT\\nStatus: {{workflow.status}}\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nLogs: <$LOGS_LINK|View Logs>"
+
+          if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+                 --data "{\"text\":\"$MESSAGE\"}" \
+                 "${SLACK_WEBHOOK_URL}"
+
+            if [ $? -eq 0 ]; then
+              echo "Slack failure notification sent"
+            else
+              echo "WARNING: Slack notification failed (exit code: $?)"
+              echo "[DEBUG] Webhook URL: ${SLACK_WEBHOOK_URL}"
+            fi
+          else
+            echo "INFO: No Slack webhook configured, skipping notification"
+          fi
+        else
+          echo "INFO: Workflow succeeded, no failure notification needed"
+        fi
+
+      env:
+      - name: SLACK_WEBHOOK_URL
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: slack-webhook-url
+            optional: true
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+
