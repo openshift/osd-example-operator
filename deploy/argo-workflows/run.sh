@@ -1,30 +1,9 @@
 #!/bin/bash
 
-# OSDE2E Gate runner with known available clusters
-# Uses the clusters you've manually verified as available
+# OSDE2E Test Runner - Production Ready Script
+# Usage: ./run.sh [OPERATOR_IMAGE] [TEST_HARNESS_IMAGE] [CLUSTER_ID]
 
 set -euo pipefail
-
-NAMESPACE="argo"
-TEMPLATE_NAME="osde2e-gate"
-
-# Function to get ready OSDE2E clusters dynamically
-get_ready_osde2e_clusters() {
-    if command -v ocm &> /dev/null; then
-        ocm list clusters --parameter search="name like 'osde2e%'" --columns id,name,state 2>/dev/null | grep "ready" | while read -r line; do
-            local id=$(echo "$line" | awk '{print $1}')
-            local name=$(echo "$line" | awk '{print $2}')
-            echo "$id:$name"
-        done
-    else
-        # Fallback to known clusters if OCM CLI not available
-        echo "2kkvrahmjbd8173k74e5t9gcl07noo1o:osde2e-19x8g "
-    fi
-}
-
-# Default images
-DEFAULT_TEST_HARNESS="quay.io/rh_ee_yiqzhang/splunk-forwarder-operator-e2e:latest"
-DEFAULT_OSDE2E="quay.io/rh_ee_yiqzhang/osde2e:latest"
 
 # Color output
 RED='\033[0;31m'
@@ -38,263 +17,92 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
-show_help() {
-    echo "OSDE2E Gate Runner with Known Clusters"
-    echo ""
-    echo "Usage: $0 [OPTIONS]"
-    echo ""
-    echo "Options:"
-    echo "  -t, --test-harness IMG   Test harness image [default: $DEFAULT_TEST_HARNESS]"
-    echo "  -o, --osde2e-image IMG   OSDE2E image [default: $DEFAULT_OSDE2E]"
-    echo "  -c, --cluster-id ID      Specific cluster ID to use"
-    echo "  -s, --slack-webhook URL  Slack webhook URL for notifications"
-    echo "  --list-clusters          Show known available clusters"
-    echo "  --pick-random           Randomly pick from known clusters"
-    echo "  --watch                  Watch workflow logs"
-    echo "  --help                   Show help"
-    echo ""
-    echo "Known Available Clusters:"
-    for cluster in "${KNOWN_CLUSTERS[@]}"; do
-        local id="${cluster%:*}"
-        local name="${cluster#*:}"
-        echo "  $id ($name)"
-    done
-}
+echo "🧪 Standard OSDE2E Test (Docker-compatible)"
+echo "==========================================="
 
-list_known_clusters() {
-    echo "🔍 Available Ready OSDE2E Clusters"
-    echo "=================================="
-    printf "%-32s %s\n" "ID" "NAME"
-    printf "%-32s %s\n" "--------------------------------" "---------------"
+# Default parameters
+OPERATOR_IMAGE="${1:-quay.io/rh_ee_yiqzhang/osd-example-operator:latest}"
+TEST_HARNESS_IMAGE="${2:-quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857}"
+OPERATOR_NAME="osd-example-operator"
+OPERATOR_NAMESPACE="argo"
+CLUSTER_ID="${3:-2kp3cq9o9klem4rrdcm3evp5kf009v0n}"
+CLEANUP="true"
 
-    local clusters=$(get_ready_osde2e_clusters)
-    if [ -z "$clusters" ]; then
-        echo "No ready OSDE2E clusters found"
-        echo ""
-        echo "💡 Use './manage-osde2e-clusters.sh list-available' to see all clusters"
-        return 1
-    fi
+log_info "📋 Configuration:"
+echo "  Operator Image: $OPERATOR_IMAGE"
+echo "  Test Harness Image: $TEST_HARNESS_IMAGE"
+echo "  Operator Name: $OPERATOR_NAME"
+echo "  Namespace: $OPERATOR_NAMESPACE"
+echo "  Cluster ID: $CLUSTER_ID"
+echo "  Cleanup After Test: $CLEANUP"
+echo ""
 
-    echo "$clusters" | while IFS=':' read -r id name; do
-        printf "%-32s %s\n" "$id" "$name"
-    done
+log_warn "⚠️  This will run standard OSDE2E tests (Docker-compatible):"
+echo "   - OCM Client ID/Secret authentication"
+echo "   - --configs rosa,int,ad-hoc-image"
+echo "   - AD_HOC_TEST_IMAGES configuration"
+echo "   - Simplified environment variables"
+echo "   - 🎉 Slack notification on success"
+echo "   - ❌ Slack notification on failure"
+echo ""
 
+# Check required secret
+log_info "🔍 Checking authentication configuration..."
+if ! kubectl get secret osde2e-credentials -n argo >/dev/null 2>&1; then
+    log_error "❌ Secret 'osde2e-credentials' does not exist in 'argo' namespace"
+    exit 1
+fi
+
+# Check OCM credentials
+if ! kubectl get secret osde2e-credentials -n argo -o jsonpath='{.data.ocm-client-id}' >/dev/null 2>&1 || ! kubectl get secret osde2e-credentials -n argo -o jsonpath='{.data.ocm-client-secret}' >/dev/null 2>&1; then
+    log_warn "⚠️  Missing OCM credentials in secret, ocm-client-id and ocm-client-secret need to be set"
     echo ""
-    log_info "To use any of these clusters:"
-    echo "./run.sh --cluster-id <CLUSTER_ID>"
+    echo "Run the following command to set OCM credentials:"
+    echo "  kubectl patch secret osde2e-credentials -n argo --type='merge' -p='{\"stringData\":{\"ocm-client-id\":\"YOUR_CLIENT_ID\",\"ocm-client-secret\":\"YOUR_CLIENT_SECRET\"}}'"
     echo ""
-    echo "Or pick one randomly:"
-    echo "./run.sh --pick-random"
-}
-
-pick_random_cluster() {
-    local clusters=$(get_ready_osde2e_clusters)
-    if [ -z "$clusters" ]; then
-        log_error "No ready OSDE2E clusters available"
-        echo ""
-        echo "💡 Try: './manage-osde2e-clusters.sh pick-ready' to auto-select a cluster"
+    echo "Make sure you have valid OCM client credentials from the OCM console"
+    echo ""
+    read -p "Continue running test anyway? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
     fi
+fi
 
-    # Convert to array and pick random
-    local cluster_array=()
-    while IFS=':' read -r id name; do
-        cluster_array+=("$id:$name")
-    done <<< "$clusters"
+log_success "✅ Authentication configuration check complete"
+echo ""
 
-    local random_index=$((RANDOM % ${#cluster_array[@]}))
-    local selected_cluster="${cluster_array[$random_index]}"
-    local cluster_id="${selected_cluster%:*}"
-    local cluster_name="${selected_cluster#*:}"
+# Build argo command
+log_info "[INFO] Submitting standard OSDE2E workflow..."
+ARGO_CMD="argo submit --from workflowtemplate/osde2e-workflow -n argo"
+ARGO_CMD="$ARGO_CMD -p operator-image=$OPERATOR_IMAGE"
+ARGO_CMD="$ARGO_CMD -p test-harness-image=$TEST_HARNESS_IMAGE"
+ARGO_CMD="$ARGO_CMD -p operator-name=$OPERATOR_NAME"
+ARGO_CMD="$ARGO_CMD -p operator-namespace=$OPERATOR_NAMESPACE"
+ARGO_CMD="$ARGO_CMD -p ocm-cluster-id=$CLUSTER_ID"
+ARGO_CMD="$ARGO_CMD -p cleanup-on-failure=$CLEANUP"
+ARGO_CMD="$ARGO_CMD --wait"
 
-    log_success "🎲 Randomly selected cluster: $cluster_name ($cluster_id)"
-    # Return only the cluster ID
-    echo "$cluster_id"
-}
+echo "$ARGO_CMD"
+echo ""
 
-update_cluster_in_secret() {
-    local cluster_id="$1"
-    local slack_webhook="$2"
-
-    log_info "Updating cluster ID in secret: $cluster_id"
-
-    # Update cluster ID
-    kubectl patch secret osde2e-credentials -n $NAMESPACE --type='merge' -p="{\"data\":{\"ocm-cluster-id\":\"$(echo -n $cluster_id | base64)\"}}"
-
-    # Update Slack webhook if provided
-    if [ -n "$slack_webhook" ]; then
-        log_info "Updating Slack webhook in secret"
-        kubectl patch secret osde2e-credentials -n $NAMESPACE --type='merge' -p="{\"data\":{\"slack-webhook-url\":\"$(echo -n $slack_webhook | base64)\"}}"
-        log_success "Slack webhook updated in secret"
-    fi
-
-    log_success "Secret updated successfully"
-}
-
-quick_check() {
-    log_info "Quick environment check..."
-
-    # Check tools
-    if ! command -v kubectl &> /dev/null || ! command -v argo &> /dev/null; then
-        log_error "kubectl or argo CLI not installed"
-        exit 1
-    fi
-
-    # Check cluster connection
-    if ! kubectl cluster-info &> /dev/null; then
-        log_error "Cannot connect to cluster"
-        exit 1
-    fi
-
-    # Check template
-    if ! kubectl get workflowtemplate $TEMPLATE_NAME -n $NAMESPACE &> /dev/null; then
-        log_error "WorkflowTemplate '$TEMPLATE_NAME' does not exist"
-        log_info "Please run: kubectl apply -f osde2e-gate.yaml"
-        exit 1
-    fi
-
-    log_success "Environment check passed"
-}
-
-run_gate() {
-    local test_harness="$1"
-    local osde2e_image="$2"
-    local cluster_id="$3"
-    local watch_logs="$4"
-    local slack_webhook="$5"
-
-    local workflow_name="osde2e-gate-$(date +%s)"
-
-    log_info "🚀 Starting OSDE2E Test Gate test..."
-    log_info "Test harness image: $test_harness"
-    log_info "OSDE2E image: $osde2e_image"
-    log_info "Cluster ID: $cluster_id"
-    log_info "Workflow name: $workflow_name"
-
-    if [ -n "$slack_webhook" ]; then
-        log_info "📢 Slack notifications: ENABLED"
-    else
-        log_info "📢 Slack notifications: DISABLED (use --slack-webhook to enable)"
-    fi
-
-    # Submit workflow
-    if argo submit --from "workflowtemplate/$TEMPLATE_NAME" \
-        -p "test-harness-image=$test_harness" \
-        -p "osde2e-image=$osde2e_image" \
-        -p "ocm-cluster-id=$cluster_id" \
-        -p "test-timeout=3600" \
-        --name "$workflow_name" \
-        -n "$NAMESPACE"; then
-
-        log_success "Workflow submitted successfully!"
-
-        if [ "$watch_logs" = "true" ]; then
-            echo ""
-            log_info "👀 Watching workflow logs (Ctrl+C to stop watching)..."
-            argo logs "$workflow_name" -n "$NAMESPACE" -f || true
-        else
-            echo ""
-            echo "📊 Monitoring commands:"
-            echo "  argo get $workflow_name -n $NAMESPACE"
-            echo "  argo logs $workflow_name -n $NAMESPACE -f"
-            echo "  argo watch $workflow_name -n $NAMESPACE"
-        fi
-
-        echo ""
-        echo "🌐 Argo UI: http://localhost:2746 (requires port forwarding)"
-
-    else
-        log_error "Workflow submission failed"
-        exit 1
-    fi
-}
-
-main() {
-    local test_harness="$DEFAULT_TEST_HARNESS"
-    local osde2e_image="$DEFAULT_OSDE2E"
-    local cluster_id=""
-    local slack_webhook=""
-    local watch_logs="false"
-    local list_clusters="false"
-    local pick_random="false"
-
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            -t|--test-harness)
-                test_harness="$2"
-                shift 2
-                ;;
-            -o|--osde2e-image)
-                osde2e_image="$2"
-                shift 2
-                ;;
-            -c|--cluster-id)
-                cluster_id="$2"
-                shift 2
-                ;;
-            -s|--slack-webhook)
-                slack_webhook="$2"
-                shift 2
-                ;;
-            --list-clusters)
-                list_clusters="true"
-                shift
-                ;;
-            --pick-random)
-                pick_random="true"
-                shift
-                ;;
-            --watch)
-                watch_logs="true"
-                shift
-                ;;
-            --help)
-                show_help
-                exit 0
-                ;;
-            *)
-                log_error "Unknown argument: $1"
-                show_help
-                exit 1
-                ;;
-        esac
-    done
-
-    echo "🎯 OSDE2E Gate - Known Clusters"
-    echo "==============================="
+# Execute command
+if eval "$ARGO_CMD"; then
+    log_success "✅ OSDE2E test completed successfully!"
     echo ""
-
-    # Handle list clusters option
-    if [ "$list_clusters" = "true" ]; then
-        list_known_clusters
-        exit 0
-    fi
-
-    quick_check
-
-    # Handle pick random option
-    if [ "$pick_random" = "true" ] && [ -z "$cluster_id" ]; then
-        local random_index=$((RANDOM % ${#KNOWN_CLUSTERS[@]}))
-        local selected_cluster="${KNOWN_CLUSTERS[$random_index]}"
-        cluster_id="${selected_cluster%:*}"
-        local cluster_name="${selected_cluster#*:}"
-        log_success "🎲 Randomly selected cluster: $cluster_name ($cluster_id)"
-    fi
-
-    # Use first known cluster if none specified
-    if [ -z "$cluster_id" ]; then
-        local first_cluster="${KNOWN_CLUSTERS[0]}"
-        cluster_id="${first_cluster%:*}"
-        local cluster_name="${first_cluster#*:}"
-        log_info "Using first known cluster: $cluster_name ($cluster_id)"
-    fi
-
-    # Update secret with cluster ID and Slack webhook
-    update_cluster_in_secret "$cluster_id" "$slack_webhook"
-
-    # Run the gate test
-    run_gate "$test_harness" "$osde2e_image" "$cluster_id" "$watch_logs" "$slack_webhook"
-}
-
-main "$@"
+    echo "🎉 Test Summary:"
+    echo "  - Method: Standard Docker equivalent"
+    echo "  - Config: rosa,int,ad-hoc-image"
+    echo "  - Auth: OCM Client ID/Secret"
+    echo "  - Test Image: $TEST_HARNESS_IMAGE"
+    echo "  - Notification: Slack success notification sent"
+    echo "  - Status: Ready for Production 🚀"
+else
+    log_error "❌ OSDE2E test failed"
+    echo ""
+    echo "🔍 Debug Information:"
+    echo "  Check status: argo get <workflow-name> -n argo"
+    echo "  View logs: argo logs <workflow-name> -n argo -f"
+    echo "  Check secret: kubectl get secret osde2e-credentials -n argo -o yaml"
+    exit 1
+fi
