@@ -15,7 +15,7 @@ This system provides an automated test gate that:
 ```
 deploy/argo-workflows/
 ├── README.md           # 📖 This comprehensive guide
-├── osde2e-gate.yaml   # 🎯 Main WorkflowTemplate
+├── osde2e-workflow.yaml   # 🎯 Main WorkflowTemplate
 ├── rbac.yaml          # 🛡️ RBAC permissions for service accounts
 ├── secrets.yaml       # 🔐 Credentials and configuration template
 └── verify-setup.sh    # ✅ Environment health checker
@@ -33,7 +33,21 @@ Before you begin, ensure you have:
 - ✅ AWS credentials for cluster access
 - ✅ Your operator test harness image built and pushed to a registry
 
-## 📝 Step-by-Step Setup Instructions
+## 🚀 Quick Start (Automated Setup)
+
+For a quick automated setup, you can use the provided script:
+
+```bash
+# Run the automated setup script
+./setup.sh
+
+# Start port forwarding for UI access
+kubectl port-forward svc/argo-server 2746:2746 -n argo
+
+# Open browser to http://localhost:2746
+```
+
+## 📝 Step-by-Step Setup Instructions (Manual)
 
 ### Step 1: Install Argo Workflows (if not already installed)
 
@@ -42,23 +56,96 @@ Before you begin, ensure you have:
 kubectl create namespace argo
 
 # Install Argo Workflows
-kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.8/install.yaml
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.7.0/install.yaml
 
 # Wait for pods to be ready
 kubectl wait --for=condition=ready pod -l app=argo-server -n argo --timeout=300s
 ```
 
-### Step 2: Configure Access to Argo UI (Optional)
+### Step 2: Configure Argo Server for UI Access
 
 ```bash
-# Port forward to access the UI
-kubectl port-forward svc/argo-server 2746:2746 -n argo &
+# First, check if argo-server service exists
+kubectl get svc -n argo
 
-# Open in browser: https://localhost:2746
-# Note: You may need to bypass SSL warnings in your browser
+# Patch argo-server to disable authentication (for local development)
+kubectl patch configmap workflow-controller-configmap -n argo --type merge -p='{"data":{"config":"auth:\n  mode: server"}}'
+
+# Patch argo-server deployment to run in insecure mode
+kubectl patch deployment argo-server -n argo --type='json' -p='[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/args/-",
+    "value": "--auth-mode=server"
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/args/-",
+    "value": "--secure=false"
+  }
+]'
+
+# Wait for argo-server to restart
+kubectl rollout status deployment/argo-server -n argo --timeout=120s
 ```
 
-### Step 3: Set Up RBAC Permissions
+### Step 3: Access the Argo UI
+
+Choose one of the following methods:
+
+#### Option A: Port Forward (Recommended for local development)
+```bash
+# Port forward to access the UI (runs in foreground)
+kubectl port-forward svc/argo-server 2746:2746 -n argo
+
+# Open in browser: http://localhost:2746 (note: http, not https)
+```
+
+#### Option B: NodePort Service (for persistent access)
+```bash
+# Change service type to NodePort
+kubectl patch svc argo-server -n argo -p '{"spec":{"type":"NodePort"}}'
+
+# Get the NodePort
+NODE_PORT=$(kubectl get svc argo-server -n argo -o jsonpath='{.spec.ports[0].nodePort}')
+echo "Argo UI available at: http://localhost:$NODE_PORT"
+
+# If using minikube
+minikube service argo-server -n argo --url
+```
+
+#### Option C: LoadBalancer (for cloud environments)
+```bash
+# Change service type to LoadBalancer (only works in cloud environments)
+kubectl patch svc argo-server -n argo -p '{"spec":{"type":"LoadBalancer"}}'
+
+# Get the external IP (may take a few minutes)
+kubectl get svc argo-server -n argo -w
+```
+
+#### Troubleshooting UI Access
+
+If you encounter issues:
+
+```bash
+# Check argo-server pod status
+kubectl get pods -n argo -l app=argo-server
+
+# Check argo-server logs
+kubectl logs -n argo -l app=argo-server --tail=50
+
+# Verify service configuration
+kubectl describe svc argo-server -n argo
+
+# Test connectivity
+kubectl port-forward svc/argo-server 2746:2746 -n argo &
+curl -k http://localhost:2746/api/v1/info
+
+# If still having issues, restart argo-server
+kubectl delete pod -n argo -l app=argo-server
+```
+
+### Step 4: Set Up RBAC Permissions
 
 ```bash
 # Apply the service account and RBAC permissions
@@ -68,7 +155,7 @@ kubectl apply -f rbac.yaml
 kubectl get serviceaccount osde2e-workflow -n argo
 ```
 
-### Step 4: Configure Credentials
+### Step 5: Configure Credentials
 
 1. **Copy the secrets template:**
    ```bash
@@ -103,17 +190,17 @@ kubectl get serviceaccount osde2e-workflow -n argo
    kubectl apply -f secrets-local.yaml
    ```
 
-### Step 5: Deploy the Workflow Template
+### Step 6: Deploy the Workflow Template
 
 ```bash
 # Apply the main workflow template
-kubectl apply -f osde2e-gate.yaml
+kubectl apply -f osde2e-workflow.yaml
 
 # Verify the template was created
-kubectl get workflowtemplate osde2e-gate -n argo
+kubectl get workflowtemplate osde2e-workflow -n argo
 ```
 
-### Step 6: Verify Your Setup
+### Step 7: Verify Your Setup
 
 ```bash
 # Run the verification script
@@ -122,7 +209,7 @@ kubectl get workflowtemplate osde2e-gate -n argo
 # Check that all resources are ready
 kubectl get all -n argo
 kubectl get secrets osde2e-credentials -n argo
-kubectl get workflowtemplate osde2e-gate -n argo
+kubectl get workflowtemplate osde2e-workflow -n argo
 ```
 
 ## 🎯 Running the Test Gate
@@ -131,7 +218,7 @@ kubectl get workflowtemplate osde2e-gate -n argo
 
 ```bash
 # Submit a new workflow instance
-argo submit --from workflowtemplate/osde2e-gate -n argo --name "osde2e-gate-$(date +%s)"
+argo submit --from workflowtemplate/osde2e-workflow -n argo --name "osde2e-gate-$(date +%s)"
 
 # Watch the workflow progress
 argo watch osde2e-gate-XXXXX -n argo
@@ -152,7 +239,7 @@ metadata:
   namespace: argo
 spec:
   workflowTemplateRef:
-    name: osde2e-gate
+    name: osde2e-workflow
   arguments:
     parameters:
     - name: test-harness-image
@@ -167,7 +254,7 @@ kubectl apply -f test-workflow.yaml
 
 ```bash
 # Submit with custom test image
-argo submit --from workflowtemplate/osde2e-gate -n argo \
+argo submit --from workflowtemplate/osde2e-workflow -n argo \
   -p test-harness-image="quay.io/your-org/custom-test:v1.2.3" \
   -p ocm-cluster-id="your-specific-cluster-id" \
   --name "custom-quality-gate-$(date +%s)"
@@ -251,7 +338,7 @@ kubectl describe clusterrolebinding osde2e-workflow-binding
 kubectl get secret osde2e-credentials -n argo
 
 # Verify workflow template
-kubectl get workflowtemplate osde2e-gate -n argo -o yaml
+kubectl get workflowtemplate osde2e-workflow -n argo -o yaml
 ```
 
 #### 2. OCM Authentication Errors
@@ -333,13 +420,13 @@ kubectl get workflowtemplates -n argo
 
 2. **Update the workflow parameter:**
    ```bash
-   argo submit --from workflowtemplate/osde2e-gate -n argo \
+   argo submit --from workflowtemplate/osde2e-workflow -n argo \
      -p test-harness-image="quay.io/your-org/your-test:v1.0.0"
    ```
 
 ### Adding Custom Environment Variables
 
-Edit `osde2e-gate.yaml` and add to the `run-osde2e-test` template:
+Edit `osde2e-workflow.yaml` and add to the `run-osde2e-test` template:
 
 ```yaml
 env:
@@ -366,7 +453,7 @@ osde2e-quality-gate:
   script:
     - |
       WORKFLOW_NAME="quality-gate-${CI_PIPELINE_ID}"
-      argo submit --from workflowtemplate/osde2e-gate -n argo \
+      argo submit --from workflowtemplate/osde2e-workflow -n argo \
         -p test-harness-image="${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHA}" \
         --name "${WORKFLOW_NAME}" \
         --wait
@@ -406,7 +493,7 @@ jobs:
     - name: Run Test Gate
       run: |
         WORKFLOW_NAME="quality-gate-${GITHUB_RUN_ID}"
-        argo submit --from workflowtemplate/osde2e-gate -n argo \
+        argo submit --from workflowtemplate/osde2e-workflow -n argo \
           -p test-harness-image="ghcr.io/${{ github.repository }}:${{ github.sha }}" \
           --name "${WORKFLOW_NAME}" \
           --wait

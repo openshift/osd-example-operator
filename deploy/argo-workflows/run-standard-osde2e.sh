@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Standard OSDE2E test script - matching Docker runtime approach
-# Usage: ./run.sh
+# Usage: ./run-standard-osde2e.sh
 
 set -euo pipefail
 
@@ -25,7 +25,7 @@ OPERATOR_IMAGE="${1:-quay.io/rh_ee_yiqzhang/osd-example-operator:latest}"
 TEST_HARNESS_IMAGE="${2:-quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857}"
 OPERATOR_NAME="osd-example-operator"
 OPERATOR_NAMESPACE="argo"
-CLUSTER_ID="2klq8krfe7dda7tpensj8h7bqmtg0vk3"
+CLUSTER_ID="2kkhbldime8jv0s12sdkvflnvg7mbqm2"
 CLEANUP="true"
 
 log_info "📋 Configuration:"

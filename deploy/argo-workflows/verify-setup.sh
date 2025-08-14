@@ -69,7 +69,7 @@ echo ""
 
 # 3. Check WorkflowTemplate
 log_info "Checking WorkflowTemplate..."
-check "OSDE2E Gate template" "kubectl get workflowtemplate osde2e-gate -n $NAMESPACE"
+check "OSDE2E Workflow template" "kubectl get workflowtemplate osde2e-workflow -n $NAMESPACE"
 
 echo ""
 

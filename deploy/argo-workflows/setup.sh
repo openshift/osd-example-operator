@@ -80,10 +80,38 @@ deploy_resources() {
         log_info "DRY RUN MODE - No resources will be actually created"
     fi
 
+    log_info "Configuring Argo Server for UI access..."
+    if [ "$dry_run" = "false" ]; then
+        # Check if argo-server exists
+        if kubectl get deployment argo-server -n argo &> /dev/null; then
+            log_info "Configuring argo-server for insecure mode..."
+
+            # Patch argo-server deployment to run in insecure mode
+            kubectl patch deployment argo-server -n argo --type='json' -p='[
+              {
+                "op": "add",
+                "path": "/spec/template/spec/containers/0/args/-",
+                "value": "--auth-mode=server"
+              },
+              {
+                "op": "add",
+                "path": "/spec/template/spec/containers/0/args/-",
+                "value": "--secure=false"
+              }
+            ]' || log_warn "Failed to patch argo-server deployment (may already be configured)"
+
+            # Wait for argo-server to restart
+            kubectl rollout status deployment/argo-server -n argo --timeout=120s || log_warn "Argo server rollout may have timed out"
+            log_success "Argo Server configured for UI access"
+        else
+            log_warn "argo-server deployment not found - you may need to install Argo Workflows first"
+        fi
+    fi
+
     log_info "Deploying RBAC resources..."
     kubectl apply -f rbac.yaml $kubectl_args
 
-        log_info "Deploying secrets..."
+    log_info "Deploying secrets..."
     kubectl apply -f secrets.yaml $kubectl_args
 
     if [ "$dry_run" = "false" ]; then
@@ -91,7 +119,7 @@ deploy_resources() {
     fi
 
     log_info "Deploying WorkflowTemplate..."
-    kubectl apply -f osde2e-gate.yaml $kubectl_args
+    kubectl apply -f osde2e-workflow.yaml $kubectl_args
 
     if [ "$dry_run" = "false" ]; then
         log_success "All resources deployed successfully!"
@@ -120,7 +148,7 @@ verify_setup() {
     fi
 
     # Check WorkflowTemplate
-    if ! kubectl get workflowtemplate osde2e-gate -n "$NAMESPACE" &> /dev/null; then
+    if ! kubectl get workflowtemplate osde2e-workflow -n "$NAMESPACE" &> /dev/null; then
         log_error "WorkflowTemplate 'gate' not found"
         return 1
     fi
@@ -141,7 +169,7 @@ show_next_steps() {
     echo "   kubectl patch secret osde2e-credentials -n $NAMESPACE --type='merge' -p='{\"stringData\":{\"slack-webhook-url\":\"https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK\"}}'"
     echo ""
     echo "3. Update cluster ID in the workflow template if needed:"
-    echo "   kubectl edit workflowtemplate osde2e-gate -n $NAMESPACE"
+    echo "   kubectl edit workflowtemplate osde2e-workflow -n $NAMESPACE"
     echo ""
     echo "4. Run the OSDE2E gate:"
     echo "   ./run.sh --pick-random"
@@ -152,12 +180,16 @@ show_next_steps() {
     echo "   argo list -n $NAMESPACE"
     echo "   argo get <workflow-name> -n $NAMESPACE"
     echo ""
-    echo "🔗 Useful commands:"
-    echo "   # Port forward to access Argo UI"
-    echo "   kubectl port-forward svc/argo-server -n argo 2746:2746"
+    echo "🌐 Access Argo UI:"
+    echo "   # Start port forwarding (run in background)"
+    echo "   kubectl port-forward svc/argo-server -n argo 2746:2746 &"
+    echo "   # Then open: http://localhost:2746"
     echo ""
+    echo "🔗 Useful commands:"
     echo "   # Check logs"
     echo "   argo logs <workflow-name> -n $NAMESPACE -f"
+    echo "   # Stop port forwarding"
+    echo "   pkill -f 'kubectl port-forward.*argo-server'"
 }
 
 main() {
