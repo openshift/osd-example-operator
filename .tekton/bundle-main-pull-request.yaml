@@ -50,7 +50,7 @@ spec:
     - name: url
       value: https://github.com/openshift/boilerplate
     - name: revision
-      value: master
+      value: main
     - name: pathInRepo
       value: pipelines/bundle-builder/pipeline.yaml
     resolver: git
