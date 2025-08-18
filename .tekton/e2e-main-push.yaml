@@ -25,7 +25,7 @@ spec:
   - name: output-image
     value: quay.io/redhat-user-workloads/oeo-cicada-tenant/osd-example-operator-main/osd-example-operator-main/e2e:{{revision}}
   - name: dockerfile
-    value: osde2e/Dockerfile
+    value: test/e2e/Dockerfile
   - name: path-context
     value: .
   - name: major-version
