@@ -1,4 +1,4 @@
-FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v7.4.0 AS builder
+FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.1.0 AS builder
 COPY go.mod /
 COPY go.sum /
 RUN go mod download
@@ -6,7 +6,7 @@ COPY . /osd-example-operator
 WORKDIR /osd-example-operator
 RUN make go-build
 
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-1753978370
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6-1755695350
 ENV OPERATOR=/usr/local/bin/osd-example-operator \
     USER_UID=1001 \
     USER_NAME=osd-example-operator
