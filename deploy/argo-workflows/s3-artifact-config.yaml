@@ -1,0 +1,129 @@
+# S3 Artifact Repository Configuration for Argo Workflows
+# This configures persistent storage for OSDE2E test reports, logs, and artifacts
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: artifact-repositories
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    component: artifact-config
+data:
+  default-v1: |
+    archiveLogs: true
+    s3:
+      # S3 bucket configuration
+      bucket: osde2e-test-artifacts
+      region: us-east-1
+
+      # Path structure for organized storage - unified with custom artifacts
+      # Pattern: workflows/operator-name/cluster-id/timestamp/argo-logs/step-name/
+      keyFormat: "workflows/{{workflow.parameters.operator-name}}/{{workflow.parameters.ocm-cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/argo-logs/{{pod.name}}"
+
+      # Authentication via IAM role or access keys
+      accessKeySecret:
+        name: s3-artifact-credentials
+        key: accesskey
+      secretKeySecret:
+        name: s3-artifact-credentials
+        key: secretkey
+
+      # Optional: Use IAM roles for better security
+      # roleARN: arn:aws:iam::ACCOUNT-ID:role/argo-workflows-s3-access
+
+      # Use default S3 endpoint
+      endpoint: s3.amazonaws.com
+      insecure: false
+
+      # Optional: Custom S3 endpoint (for MinIO or other S3-compatible storage)
+      # endpoint: s3.amazonaws.com
+      # insecure: false
+
+---
+# Note: S3 credentials are now managed in secrets.yaml
+# This ensures sensitive data is not committed to version control
+# Use secrets-template.yaml as a template for your secrets.yaml
+
+---
+# IAM Policy for S3 Artifact Access (reference for AWS IAM setup)
+# This policy should be attached to the IAM user/role used for S3 access
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-iam-policy-reference
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    component: documentation
+data:
+  s3-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:GetObjectVersion",
+            "s3:ListBucket"
+          ],
+          "Resource": [
+            "arn:aws:s3:::osde2e-test-artifacts",
+            "arn:aws:s3:::osde2e-test-artifacts/*"
+          ]
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:ListAllMyBuckets",
+            "s3:GetBucketLocation"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+
+---
+# S3 Bucket Lifecycle Policy (reference for AWS S3 setup)
+# This helps manage storage costs by automatically archiving/deleting old artifacts
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-lifecycle-policy-reference
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    component: documentation
+data:
+  lifecycle-policy.json: |
+    {
+      "Rules": [
+        {
+          "ID": "OSDE2EArtifactLifecycle",
+          "Status": "Enabled",
+          "Filter": {
+            "Prefix": ""
+          },
+          "Transitions": [
+            {
+              "Days": 30,
+              "StorageClass": "STANDARD_IA"
+            },
+            {
+              "Days": 90,
+              "StorageClass": "GLACIER"
+            },
+            {
+              "Days": 365,
+              "StorageClass": "DEEP_ARCHIVE"
+            }
+          ],
+          "Expiration": {
+            "Days": 2555
+          }
+        }
+      ]
+    }

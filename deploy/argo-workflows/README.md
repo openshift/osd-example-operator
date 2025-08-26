@@ -1,32 +1,39 @@
 # OSDE2E Test Gate with Argo Workflows
 
-🚀 **Production-ready implementation** of OSDE2E test gates using Argo Workflows for automated operator testing and deployment validation.
+OSDE2E test gates using Argo Workflows for automated operator testing and deployment validation. This system provides production-ready quality gates with comprehensive security, monitoring, and CI/CD integration capabilities.
 
-## 📋 Overview
+## Overview
 
 This system provides a comprehensive automated test gate that validates your operators before production deployment:
 
-- **🧪 Automated Testing**: Runs OSDE2E tests on existing OpenShift clusters using your test harness
-- **⚡ Quick Setup**: One-command setup with `./setup.sh` or step-by-step manual configuration
-- **🔗 CI/CD Integration**: Acts as a reliable gate for GitLab CI, GitHub Actions, and other pipelines
-- **📊 Rich Notifications**: Sends detailed Slack notifications with test results, links, and status
-- **🛡️ Production Ready**: Includes RBAC, secrets management, and comprehensive error handling
+- **Automated Testing**: Runs OSDE2E tests on existing OpenShift clusters using your test harness
+- **Quick Setup**: One-command setup with `./setup.sh` or step-by-step manual configuration
+- **CI/CD Integration**: Acts as a reliable gate for GitLab CI, GitHub Actions, and other pipelines
+- **Rich Notifications**: Sends detailed Slack notifications with test results, links, and status
+- **Production Ready**: Includes RBAC, secrets management, and comprehensive error handling
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 deploy/argo-workflows/
-├── README.md                    # 📖 This comprehensive guide
-├── osde2e-workflow.yaml         # 🎯 Main WorkflowTemplate (test pipeline)
-├── secrets.yaml                 # 🔐 Credentials template
-├── rbac.yaml                    # 🛡️ RBAC permissions
-├── setup.sh                     # 🔧 Automated setup script
-├── run.sh                       # ⚡ Quick test runner
-├── ui.sh                        # 🖥️ UI access management
-└── verify-setup.sh               # ✅ Health checker
+├── README.md                      # This comprehensive guide
+├── osde2e-workflow.yaml           # Main WorkflowTemplate
+├── secrets.yaml                   # Credentials template
+├── rbac.yaml                      # RBAC permissions
+├── setup.sh                       # Automated setup script
+├── run.sh                         # Test runner with quality gates
+├── ui.sh                          # UI access management
+├── s3-artifact-config.yaml        # S3 artifact repository config
+├── setup-s3-artifacts.sh          # S3 setup automation
+├── setup-external-access.sh       # External UI access setup
+├── QUALITY-GATES.md               # Quality gate modes and usage
+├── S3-ARTIFACT-SETUP.md           # S3 setup documentation
+├── TROUBLESHOOTING.md             # Comprehensive troubleshooting guide
+├── ARCHITECTURE-DEEP-DIVE.md      # Technical architecture details & test results
+└── .gitignore                     # Git ignore rules
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -43,29 +50,51 @@ Ensure you have the following before starting:
 
 ### Option 1: Automated Setup (Recommended)
 
-Get started in under 5 minutes:
+Get started in under 5 minutes with **conflict-safe scripts**:
 
 ```bash
-# 1. Run automated setup
+# 1. Install and configure Argo Workflows + UI access
+./ui.sh --fix --background
+
+# 2. Run automated setup
 ./setup.sh
 
-# 2. Configure your credentials (see secrets-setup-guide.md)
+# 3. Set up S3 artifact storage (new clusters)
+./setup-s3-artifacts.sh
+# For cross-account access: ./setup-s3-artifacts.sh --cross-account
+
+# 4. Configure external access for team sharing (optional but recommended)
+./setup-external-access.sh --type route  # For OpenShift
+# ./setup-external-access.sh --type ingress --domain argo.yourdomain.com  # For K8s with Ingress
+# ./setup-external-access.sh --type loadbalancer  # For cloud environments
+
+# 5. Configure your credentials
 cp secrets.yaml secrets-local.yaml
 # Edit secrets-local.yaml with your real credentials
 kubectl apply -f secrets-local.yaml
 
-# 3. Access Argo UI
-./ui.sh --background
+# 6. Run your first test
+./run.sh                    # Auto-approve mode (default)
+./run.sh --manual-approval  # Manual approval mode (for production)
+```
 
-# 4. Run your first test
-./run.sh
+> **✅ Script Safety**: All scripts are now **conflict-safe** and can be run in any order without causing CrashLoopBackOff issues. They automatically detect and fix configuration conflicts.
+>
+> **New Cluster Tip**: For brand new clusters, start with `./ui.sh --fix --background` to auto-install Argo Workflows.
+>
+> **Team Sharing Tip**: Step 4 (external access) enables team members to access the Argo UI without port-forwarding. This makes Slack notification links clickable and improves collaboration.
+
+#### Alternative: One-Line Setup
+```bash
+# For experienced users - all scripts can run safely together:
+./ui.sh --fix --background && ./setup.sh && ./setup-s3-artifacts.sh && ./setup-external-access.sh --type route
 ```
 
 ### Option 2: Manual Setup
 
 For step-by-step control, follow the detailed manual setup below.
 
-## 📝 Step-by-Step Setup Instructions (Manual)
+## Step-by-Step Setup Instructions (Manual)
 
 ### Step 1: Install Argo Workflows (if not already installed)
 
@@ -106,6 +135,21 @@ kubectl rollout status deployment/argo-server -n argo --timeout=120s
 
 ### Step 3: Access the Argo UI
 
+**Two Access Methods Available:**
+
+1. **External Access (Recommended for Team Sharing)**
+   - URL: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org
+   - Accessible by anyone with network access
+   - No port-forwarding required
+   - Persistent across sessions
+   - Clickable links in Slack notifications
+
+2. **Local Access (Development)**
+   - URL: http://localhost:2746 (via port-forward)
+   - Requires active port-forwarding
+   - Single user access
+   - Good for local development and debugging
+
 **Option A: Using the UI management script (Recommended)**
 
 ```bash
@@ -116,6 +160,7 @@ kubectl rollout status deployment/argo-server -n argo --timeout=120s
 ./ui.sh                    # Open UI (foreground)
 ./ui.sh --background       # Run in background
 ./ui.sh --port 8080        # Use custom port
+./ui.sh --get-url          # Show current UI URLs
 ./ui.sh --help             # Show all options
 ```
 
@@ -123,7 +168,9 @@ The script will automatically:
 - Fix common UI access issues
 - Set up port forwarding
 - Test connectivity
-- Open the UI at http://localhost:2746
+- Open the UI at:
+  - **Local access**: http://localhost:2746 (via port-forward)
+  - **External access**: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org (OpenShift Route)
 
 **Option B: Manual port forwarding**
 
@@ -131,12 +178,61 @@ The script will automatically:
 # Start port forwarding manually
 kubectl port-forward svc/argo-server 2746:2746 -n argo &
 
-# Open browser to http://localhost:2746
+# Access options:
+# - Local: http://localhost:2746
+# - External: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org
 ```
 
 **Having Issues?** See the comprehensive [Troubleshooting](#-troubleshooting) section below.
 
-### Step 4: Set Up RBAC Permissions
+### Step 4: Configure External Access (Optional but Recommended)
+
+For team sharing and persistent access, set up external access using one of these methods:
+
+**Option A: Automated Setup (Recommended)**
+```bash
+# Auto-detect platform and configure best option
+./setup-external-access.sh
+
+# Or specify the type explicitly:
+./setup-external-access.sh --type route
+# OpenShift
+./setup-external-access.sh --type ingress --domain argo.yourdomain.com
+# Kubernetes + Ingress
+./setup-external-access.sh --type nodeport --nodeport 32746
+# Development/Local
+./setup-external-access.sh --type loadbalancer
+# Cloud environments
+```
+
+**Option B: Manual Configuration**
+```bash
+# For OpenShift Route
+kubectl apply -f - <<EOF
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: argo-server-route
+  namespace: argo
+spec:
+  to:
+    kind: Service
+    name: argo-server
+  port:
+    targetPort: web
+EOF
+
+# Get the Route URL
+kubectl get route argo-server-route -n argo -o jsonpath='{.spec.host}'
+```
+
+**Benefits of External Access:**
+- ✅ Team members can access UI without port-forwarding
+- ✅ Persistent access across sessions
+- ✅ Clickable links in Slack notifications
+- ✅ Better for demos and collaboration
+
+### Step 5: Set Up RBAC Permissions
 
 ```bash
 # Apply the service account and RBAC permissions
@@ -146,7 +242,7 @@ kubectl apply -f rbac.yaml
 kubectl get serviceaccount osde2e-workflow -n argo
 ```
 
-### Step 5: Configure Credentials
+### Step 6: Configure Credentials
 
 1. **Copy the secrets template:**
    ```bash
@@ -181,7 +277,7 @@ kubectl get serviceaccount osde2e-workflow -n argo
    kubectl apply -f secrets-local.yaml
    ```
 
-### Step 6: Deploy the Workflow Template
+### Step 7: Deploy the Workflow Template
 
 ```bash
 # Apply the main workflow template
@@ -191,11 +287,11 @@ kubectl apply -f osde2e-workflow.yaml
 kubectl get workflowtemplate osde2e-workflow -n argo
 ```
 
-### Step 7: Verify Your Setup
+### Step 8: Verify Your Setup
 
 ```bash
 # Run the verification script
-./verify-setup.sh
+./setup.sh --verify
 
 # Check that all resources are ready
 kubectl get all -n argo
@@ -203,22 +299,63 @@ kubectl get secrets osde2e-credentials -n argo
 kubectl get workflowtemplate osde2e-workflow -n argo
 ```
 
-## 🎯 Running Tests
+## Running Tests
 
 Once setup is complete, you can run tests in several ways:
 
 ### Quick Test Run (Recommended)
 
 ```bash
-# Run test with default settings
+# Run test with quality gate (auto-approve after 10s evaluation)
 ./run.sh
+
+# Run with manual gate approval (interactive demo mode)
+./run.sh --manual-gate
 
 # Run with custom images
 ./run.sh quay.io/your-org/operator:v1.0.0 quay.io/your-org/e2e-tests:v1.0.0
 
 # Run with specific cluster
 ./run.sh [OPERATOR_IMAGE] [TEST_HARNESS_IMAGE] [CLUSTER_ID]
+
+# Show what would be executed without running
+./run.sh --dry-run
 ```
+
+## Quality Gate Feature
+
+The OSDE2E Test Gate provides a quality control checkpoint that demonstrates **progressive delivery** with automated testing gates:
+
+### Gate Modes
+
+| Mode | Command | Description | Use Case |
+|------|---------|-------------|----------|
+| **Auto-approve** | `./run.sh` | 10s evaluation + automatic approval | CI/CD pipelines, demos |
+| **Manual Gate** | `./run.sh --manual-gate` | Pauses for manual approval | Interactive demos, training |
+| **Dry Run** | `./run.sh --dry-run` | Shows what would be executed | Testing, validation |
+
+### Gate Flow
+
+```mermaid
+graph LR
+    A[Deploy Operator] --> B[Wait for Readiness]
+    B --> C[Run OSDE2E Tests]
+    C --> D[Collect Artifacts]
+    D --> E[🚦 Test Gate]
+    E --> F[Promote & Notify]
+    F --> G[Cleanup]
+
+    style E fill:#ffeb3b,stroke:#f57f17,stroke-width:3px
+```
+
+### Gate Benefits
+
+- **🛡️ Quality Assurance**: Only tested operators reach production
+- **👁️ Visibility**: Clear indication of gate status in Argo UI
+- **🔗 Integration Ready**: Easily extensible for real approval systems
+- **📊 Audit Trail**: Complete record of testing and approval decisions
+
+> 📖 **Learn More**: See [GATE-FEATURE-GUIDE.md](GATE-FEATURE-GUIDE.md) for detailed gate documentation and examples.
 
 ### Advanced Test Options
 
@@ -266,7 +403,7 @@ argo submit --from workflowtemplate/osde2e-workflow -n argo \
   --name "custom-test-$(date +%s)"
 ```
 
-## 📊 How It Works
+## How It Works
 
 ### Test Pipeline Overview
 
@@ -295,7 +432,7 @@ The workflow executes a comprehensive 6-step test pipeline:
 - **Failure**: Detailed error information with links to logs and troubleshooting steps
 - **Always**: Test results are displayed in workflow logs regardless of notification settings
 
-## 📢 Slack Notifications (Optional)
+## Slack Notifications (Optional)
 
 ### Quick Setup
 
@@ -317,13 +454,13 @@ The workflow executes a comprehensive 6-step test pipeline:
 - **Failure Alerts**: Error details with direct links to workflow logs and troubleshooting info
 - **Rich Formatting**: Clickable links to OCM clusters, Argo workflows, and test logs
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Quick Diagnosis
 
 ```bash
 # Check overall system health
-./verify-setup.sh
+./setup.sh --verify
 
 # Check Argo UI access
 ./ui.sh --fix
@@ -340,33 +477,78 @@ argo logs WORKFLOW_NAME -n argo
 
 #### 🖥️ Argo UI Access Issues
 
-**Problem: Cannot access Argo UI**
+**Problem: Cannot access Argo UI (New Clusters)**
 ```bash
-# Check argo-server status
-kubectl get pods -n argo -l app=argo-server
+# For brand new clusters - auto-install Argo Workflows
+./ui.sh --fix --background
 
-# Check logs for errors
-kubectl logs -n argo -l app=argo-server --tail=20
-
-# Fix common issues automatically
-./ui.sh --fix
+# This will:
+# - Install Argo Workflows if not present
+# - Configure UI access
+# - Set up port forwarding
+# - Test connectivity with retries
 ```
 
-**Problem: Pod in CrashLoopBackOff with "unknown field auth"**
+**Problem: UI connection failed after setup**
 ```bash
-# Remove incorrect auth configuration
-kubectl patch configmap workflow-controller-configmap -n argo --type='json' \
-  -p='[{"op": "remove", "path": "/data/config"}]'
+# Enhanced UI script with better error handling
+./ui.sh --fix --background
 
-# Restart argo-server
+# Check connection manually
+curl http://localhost:2746/api/v1/info
+
+# View port-forward logs
+tail -f /tmp/argo-ui-port-forward.log
+```
+
+**Problem: Pod in CrashLoopBackOff with duplicate arguments or JSON errors**
+```bash
+# ✅ FIXED: All scripts now automatically detect and fix these issues
+
+# 1. Auto-fix duplicate arguments (recommended)
+./ui.sh --fix --background        # Detects CrashLoopBackOff and fixes duplicates
+./setup.sh                        # Smart configuration detection
+./setup-external-access.sh --type route  # Safe to run multiple times
+
+# 2. Manual fix for duplicate arguments
+kubectl patch deployment argo-server -n argo --type='json' -p='[{
+  "op": "replace",
+  "path": "/spec/template/spec/containers/0/args",
+  "value": ["server", "--auth-mode=server", "--secure=false"]
+}]'
+
+# 3. Manual fix for workflow-controller JSON errors
+kubectl patch configmap workflow-controller-configmap -n argo --type='json' -p='[{
+  "op": "replace",
+  "path": "/data/artifactRepository",
+  "value": "archiveLogs: true\ns3:\n  bucket: osde2e-test-artifacts\n  region: us-east-1\n  endpoint: s3.amazonaws.com\n  keyFormat: \"{{workflow.creationTimestamp.Y}}/{{workflow.creationTimestamp.m}}/{{workflow.creationTimestamp.d}}/{{workflow.name}}/{{pod.name}}\"\n  accessKeySecret:\n    name: s3-artifact-credentials\n    key: accesskey\n  secretKeySecret:\n    name: s3-artifact-credentials\n    key: secretkey\n  useSDKCreds: true"
+}]'
+kubectl rollout restart deployment/workflow-controller -n argo
+
+# 4. Restart argo-server
 kubectl rollout restart deployment/argo-server -n argo
 kubectl rollout status deployment/argo-server -n argo --timeout=120s
 ```
 
-#### 🚀 Workflow Execution Issues
+**Problem: Argo Workflows not installed**
+```bash
+# Our UI script now auto-installs Argo Workflows
+./ui.sh --fix
+
+# Manual installation if needed
+kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.7.0/install.yaml
+```
+
+#### Workflow Execution Issues
 
 **Problem: Workflow stuck in "Pending" status**
 ```bash
+# Most common cause: Artifact storage not configured
+kubectl get configmap workflow-controller-configmap -n argo -o yaml | grep -A 10 artifactRepository
+
+# Quick fix - run S3 setup
+./setup-s3-artifacts.sh
+
 # Check RBAC permissions
 kubectl get serviceaccount osde2e-workflow -n argo
 kubectl describe clusterrolebinding osde2e-workflow-binding
@@ -376,6 +558,30 @@ kubectl get secret osde2e-credentials -n argo
 
 # Verify workflow template
 kubectl get workflowtemplate osde2e-workflow -n argo
+```
+
+**Problem: "You need to configure artifact storage" error**
+```bash
+# This is the most common issue for new clusters
+# Fix with automated S3 setup
+./setup-s3-artifacts.sh
+
+# Or manual fix
+kubectl patch configmap workflow-controller-configmap -n argo --type='merge' -p='{
+  "data": {
+    "artifactRepository": "archiveLogs: true\ns3:\n  bucket: osde2e-test-artifacts\n  region: us-east-1\n  endpoint: s3.amazonaws.com\n  keyFormat: \"{{workflow.creationTimestamp.Y}}/{{workflow.creationTimestamp.m}}/{{workflow.creationTimestamp.d}}/{{workflow.name}}/{{pod.name}}\"\n  accessKeySecret:\n    name: s3-artifact-credentials\n    key: accesskey\n  secretKeySecret:\n    name: s3-artifact-credentials\n    key: secretkey\n  useSDKCreds: true"
+  }
+}'
+
+# Restart workflow controller
+kubectl rollout restart deployment/workflow-controller -n argo
+```
+
+**Problem: "failed to create new S3 client: Endpoint does not follow standards"**
+```bash
+# Missing S3 endpoint in configuration
+# Run the S3 setup script which includes endpoint configuration
+./setup-s3-artifacts.sh
 ```
 
 **Problem: "ImagePullBackOff" or "ErrImagePull" errors**
@@ -462,7 +668,7 @@ If issues persist after trying the solutions above:
 1. **Collect diagnostic information:**
    ```bash
    # Run health check
-   ./verify-setup.sh > diagnosis.txt
+   ./setup.sh --verify > diagnosis.txt
 
    # Get workflow details
    argo get WORKFLOW_NAME -n argo >> diagnosis.txt
@@ -479,7 +685,7 @@ If issues persist after trying the solutions above:
 
 3. **Contact support** with the diagnostic information and specific error messages
 
-## 🔧 Customization & CI/CD Integration
+## Customization & CI/CD Integration
 
 ### Custom Test Images
 
@@ -575,7 +781,7 @@ pipeline {
 }
 ```
 
-## 📚 Resources & Links
+## Resources & Links
 
 - **Documentation**: [Argo Workflows](https://argoproj.github.io/argo-workflows/) | [OSDE2E Framework](https://github.com/openshift/osde2e)
 - **Development**: [OpenShift Operators](https://docs.openshift.com/container-platform/latest/operators/operator_sdk/osdk-about.html)
@@ -583,7 +789,23 @@ pipeline {
 
 ---
 
-## 🚀 Quick Reference
+## Quick Reference
+
+### Quality Gate Modes
+```bash
+./run.sh                    # Auto-approve (CI/CD pipelines)
+./run.sh --manual-approval  # Manual approval (production gates)
+```
+
+### S3 Artifact Structure
+All artifacts are stored in a unified structure:
+```
+workflows/operator-name/cluster-id/timestamp/
+├── argo-logs/              # Workflow step logs
+├── artifacts/              # Test outputs & reports
+├── test-summary.json       # Results summary
+└── test-report.html        # Formatted report
+```
 
 ### Essential Commands
 
@@ -591,13 +813,14 @@ pipeline {
 # Setup (one-time)
 ./setup.sh                          # Automated setup
 ./ui.sh --background                 # Access Argo UI
+./setup-external-access.sh          # Configure external access
 
 # Testing
 ./run.sh                             # Run test with defaults
 ./run.sh [OPERATOR] [TESTS] [CLUSTER] # Custom test run
 
 # Management
-./verify-setup.sh                    # Health check
+./setup.sh --verify                    # Health check
 ./ui.sh --fix                        # Fix UI issues
 argo list -n argo                    # List workflows
 ```
@@ -609,10 +832,26 @@ argo list -n argo                    # List workflows
 - `run.sh` - Quick test runner
 - `ui.sh` - UI access management
 
+## Documentation and Resources
+
+### Core Documentation
+- **[README.md](README.md)** - This comprehensive guide
+- **[S3-ARTIFACT-SETUP.md](S3-ARTIFACT-SETUP.md)** - Complete S3 artifact storage setup guide
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Comprehensive troubleshooting guide for common issues
+- **[QUALITY-GATES.md](QUALITY-GATES.md)** - Quality gate modes, usage, and workflow execution guide
+- **[ARCHITECTURE-DEEP-DIVE.md](ARCHITECTURE-DEEP-DIVE.md)** - Technical architecture details and OSDE2E test results storage guide
+
+### Quick Reference Scripts
+- **`./ui.sh --help`** - UI access management options
+- **`./ui.sh --get-url`** - Show current UI URLs (local & external)
+- **`./run.sh --help`** - Test execution options
+- **`./setup.sh --help`** - Setup script options
+- **`./setup-external-access.sh --help`** - External access configuration options
+- **`./setup.sh --verify`** - Health check and validation
+
 ### Support
 
-- 📖 **Detailed Setup**: See `secrets-setup-guide.md`
-- 🔍 **Troubleshooting**: Check the troubleshooting section above
-- 🌐 **Argo UI**: http://localhost:2746 (after running `./ui.sh`)
-
-**Production-ready OSDE2E testing with confidence!** ✨
+- **Detailed Setup**: See documentation files above
+- **Troubleshooting**: Check the troubleshooting section above
+- **Argo UI**: Use external access URL above or local access via `./ui.sh`
+- **Quick Start**: `./ui.sh --fix --background && ./setup.sh && ./setup-external-access.sh && ./run.sh`
