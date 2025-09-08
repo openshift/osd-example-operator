@@ -35,7 +35,7 @@ BASE_PREFIX="workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}"
 2. **Non-deterministic Paths**: Changed from dynamic pod names to deterministic timestamp paths
 3. **Missing Files**: When OSDE2E doesn't generate expected directories, simplified to single archive
 
-### 2. 🚨 Argo Server CrashLoopBackOff Issues
+### 2.  Argo Server CrashLoopBackOff Issues
 
 #### Symptoms
 - `argo-server` pods stuck in CrashLoopBackOff state
@@ -78,9 +78,9 @@ kubectl get pods -n argo
 ```
 
 #### Prevention
-- ✅ **All scripts are now conflict-safe** - you can run them in any order
-- ✅ **Smart detection** - scripts check for correct configuration before patching
-- ✅ **Auto-recovery** - scripts automatically detect and fix CrashLoopBackOff issues
+-  **All scripts are now conflict-safe** - you can run them in any order
+-  **Smart detection** - scripts check for correct configuration before patching
+-  **Auto-recovery** - scripts automatically detect and fix CrashLoopBackOff issues
 
 #### Safe Script Usage (Updated)
 ```bash
@@ -93,7 +93,7 @@ kubectl get pods -n argo
 ./ui.sh --fix --background & ./setup.sh & wait
 ```
 
-### 3. 🖥️ UI Access Issues
+### 3.  UI Access Issues
 
 #### Symptoms
 - UI cannot open or connection timeout
@@ -122,7 +122,7 @@ kubectl rollout restart deployment/argo-server -n argo
 - **Local Development**: Use `./ui.sh` port-forward
 - **Production Environment**: Configure LoadBalancer + SSL
 
-### 3. 📄 JSON/HTML Artifact Display Issues
+### 3.  JSON/HTML Artifact Display Issues
 
 #### Symptoms
 - JSON files display as garbled text in UI
@@ -155,7 +155,7 @@ jq -n \
   }' > /tmp/test-summary.json
 ```
 
-### 4. 🔄 Workflow Execution Issues
+### 4.  Workflow Execution Issues
 
 #### Symptoms
 - Workflow stuck in Pending status
@@ -181,7 +181,7 @@ kubectl describe nodes
 argo resubmit -n argo <workflow-name>
 ```
 
-### 5. 🏗️ Architecture Compatibility Issues
+### 5.  Architecture Compatibility Issues
 
 #### Symptoms
 - `exec container process '/e2e.test': Exec format error`
@@ -203,7 +203,7 @@ spec:
     kubernetes.io/arch: amd64
 ```
 
-### 6. 🔐 Permission and Authentication Issues
+### 6.  Permission and Authentication Issues
 
 #### Symptoms
 - ServiceAccount insufficient permissions
@@ -260,7 +260,7 @@ kubectl logs --previous deployment/argo-server -n argo > argo-server.log
 kubectl get events -n argo > argo-events.log
 ```
 
-## 🛠️ Preventive Maintenance
+##  Preventive Maintenance
 
 ### Regular Checks
 ```bash
@@ -288,7 +288,7 @@ aws s3 ls s3://osde2e-test-artifacts/ --recursive | \
   xargs -I {} aws s3 rm s3://osde2e-test-artifacts/{}
 ```
 
-## 📊 Monitoring and Alerting
+##  Monitoring and Alerting
 
 ### Key Metrics
 - Workflow success rate
@@ -317,7 +317,7 @@ fi
 - **S3 Setup**: [S3-ARTIFACT-SETUP.md](S3-ARTIFACT-SETUP.md)
 - **Local Development**: [LOCAL-DEVELOPMENT.md](LOCAL-DEVELOPMENT.md)
 
-## 📞 Getting Help
+##  Getting Help
 
 ### Self-Diagnosis
 1. Run `./verify-setup.sh`

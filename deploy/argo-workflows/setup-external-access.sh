@@ -400,7 +400,7 @@ main() {
             ;;
     esac
 
-    echo "🚀 Argo Workflows UI External Access Setup"
+    echo " Argo Workflows UI External Access Setup"
     echo "==========================================="
 
     check_prerequisites
@@ -424,12 +424,12 @@ main() {
     echo ""
     log_success "External access setup completed!"
     echo ""
-    echo "📋 Next Steps:"
+    echo " Next Steps:"
     echo "1. Test access to the Argo UI using the provided URL"
     echo "2. Configure authentication if needed for production use"
     echo "3. Set up TLS/HTTPS for secure access"
     echo ""
-    echo "🔍 Troubleshooting:"
+    echo " Troubleshooting:"
     echo "- Check service status: kubectl get svc -n $NAMESPACE"
     echo "- Check ingress/route status: kubectl get ingress,route -n $NAMESPACE"
     echo "- View argo-server logs: kubectl logs -l app=argo-server -n $NAMESPACE"

@@ -30,7 +30,7 @@ spec:
     - name: kubectl-image
       value: "quay.io/openshift/origin-cli:latest"
     - name: ocm-cluster-id
-      value: "2ktc30g984vfcninfhgbd5ok1tn5e2b5"
+      value: "2l5r5un9mlja28nr7uurptg33qdtnfbd"
     - name: test-timeout
       value: "3600"
     - name: cleanup-on-failure

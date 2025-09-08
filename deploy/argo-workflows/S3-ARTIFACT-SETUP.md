@@ -11,16 +11,16 @@ This guide provides a complete technical roadmap and implementation steps for co
 #### New Storage Structure
 ```
 S3 Bucket: osde2e-test-artifacts
-└── workflows/
-    └── {operator-name}/                    # Operator name (e.g: osd-example-operator)
-        └── {cluster-id}/                   # Cluster ID (e.g: 2ktc30g984vfcninfhgbd5ok1tn5e2b5)
-            └── {timestamp}/                # Timestamp (e.g: 20250826-1530)
-                ├── artifacts/              # Test artifacts directory
-                │   ├── osde2e-reports.tar.gz      # Complete test report archive
-                │   ├── main_execution.log          # Full execution log (direct view)
-                │   └── test_output.log             # OSDE2E internal log (direct view)
-                ├── test-summary.json       # Test summary (direct view)
-                └── test-report.html        # HTML report (direct view)
+ workflows/
+     {operator-name}/                    # Operator name (e.g: osd-example-operator)
+         {cluster-id}/                   # Cluster ID (e.g: 2ktc30g984vfcninfhgbd5ok1tn5e2b5)
+             {timestamp}/                # Timestamp (e.g: 20250826-1530)
+                 artifacts/              # Test artifacts directory
+                    osde2e-reports.tar.gz      # Complete test report archive
+                    main_execution.log          # Full execution log (direct view)
+                    test_output.log             # OSDE2E internal log (direct view)
+                 test-summary.json       # Test summary (direct view)
+                 test-report.html        # HTML report (direct view)
 ```
 
 #### Architecture Improvement History
@@ -28,25 +28,25 @@ S3 Bucket: osde2e-test-artifacts
 **Previous Architecture (Deprecated)**:
 ```
 S3 Bucket: osde2e-test-artifacts
-└── 2024/01/15/
-    └── osde2e-workflow-abc123/              # Random workflow name
-        ├── osde2e-workflow-abc123-run-osde2e-test-1234567890/  # Random pod name
-        │   ├── junit-reports.tar.gz
-        │   └── ...
-        └── osde2e-workflow-abc123-collect-test-results-9876543210/
+ 2024/01/15/
+     osde2e-workflow-abc123/              # Random workflow name
+         osde2e-workflow-abc123-run-osde2e-test-1234567890/  # Random pod name
+            junit-reports.tar.gz
+            ...
+         osde2e-workflow-abc123-collect-test-results-9876543210/
 ```
 
 **Issues:**
-- ❌ Contains randomly generated workflow and pod names
-- ❌ URLs contain wildcards (`*`), cannot be directly accessed
-- ❌ Complex path structure, difficult to navigate
+-  Contains randomly generated workflow and pod names
+-  URLs contain wildcards (`*`), cannot be directly accessed
+-  Complex path structure, difficult to navigate
 
 **New Architecture Advantages:**
-- ✅ **Deterministic Paths**: Predictable paths based on operator, cluster, and timestamp
-- ✅ **Easy Navigation**: Organized by operator and cluster for easy history lookup
-- ✅ **No Wildcards**: All links are directly accessible without dynamic resolution
-- ✅ **Simplified Structure**: Reduced nesting levels, improved readability
-- ✅ **Direct Viewing**: Logs and report files can be viewed directly in browser without download
+-  **Deterministic Paths**: Predictable paths based on operator, cluster, and timestamp
+-  **Easy Navigation**: Organized by operator and cluster for easy history lookup
+-  **No Wildcards**: All links are directly accessible without dynamic resolution
+-  **Simplified Structure**: Reduced nesting levels, improved readability
+-  **Direct Viewing**: Logs and report files can be viewed directly in browser without download
 
 ### Component Architecture
 ```mermaid
@@ -264,7 +264,7 @@ argo logs test-s3-artifacts -n argo
 aws s3 ls s3://osde2e-test-artifacts/ --recursive
 ```
 
-## 📊 Artifact Management
+##  Artifact Management
 
 ### Using Management Scripts
 ```bash
@@ -299,7 +299,7 @@ tar -xzf osde2e-reports.tar.gz
 aws s3 sync s3://osde2e-test-artifacts/workflows/operator/cluster/timestamp/ ./artifacts/
 ```
 
-## 💰 Cost Optimization
+##  Cost Optimization
 
 ### Storage Class Transitions
 ```
@@ -378,7 +378,7 @@ kubectl get events -n argo --sort-by='.lastTimestamp'
 kubectl describe workflow test-s3-artifacts -n argo
 ```
 
-## 📈 Monitoring and Alerting
+##  Monitoring and Alerting
 
 ### CloudWatch Metrics
 - S3 storage usage
@@ -410,7 +410,7 @@ kubectl top pods -n argo
 - [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
 - [OSDE2E Framework](https://github.com/openshift/osde2e)
 
-## ✅ Checklist
+##  Checklist
 
 ### Pre-Deployment Checklist
 - [ ] AWS credentials configured correctly
@@ -436,14 +436,14 @@ kubectl top pods -n argo
 
 ---
 
-## 🎉 Summary
+##  Summary
 
 Through this guide, you have successfully configured:
 
-1. ✅ **Secure Credential Management System** - Using templates and .gitignore to protect sensitive information
-2. ✅ **Complete S3 Artifact Repository** - Automated storage and lifecycle management
-3. ✅ **Enhanced OSDE2E Workflows** - Supporting JUnit, HTML reports, and log persistence
-4. ✅ **Management and Monitoring Tools** - For artifact management and cost optimization
-5. ✅ **Troubleshooting Guide** - Quick resolution of common issues
+1.  **Secure Credential Management System** - Using templates and .gitignore to protect sensitive information
+2.  **Complete S3 Artifact Repository** - Automated storage and lifecycle management
+3.  **Enhanced OSDE2E Workflows** - Supporting JUnit, HTML reports, and log persistence
+4.  **Management and Monitoring Tools** - For artifact management and cost optimization
+5.  **Troubleshooting Guide** - Quick resolution of common issues
 
 Your OSDE2E test results will now be automatically persisted to S3, supporting long-term storage, cost optimization, and convenient access!

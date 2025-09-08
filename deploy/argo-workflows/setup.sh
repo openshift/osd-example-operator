@@ -97,7 +97,7 @@ check() {
 }
 
 verify_setup() {
-    echo "🔍 OSDE2E Gate Environment Verification"
+    echo " OSDE2E Gate Environment Verification"
     echo "======================================="
     echo ""
 
@@ -158,7 +158,7 @@ verify_setup() {
     check "test harness image" "kubectl run --rm -i --restart=Never --image=quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857 test-harness-test -- echo 'test'" "false"
 
     echo ""
-    echo "📊 Verification Results Summary"
+    echo " Verification Results Summary"
     echo "==============================="
     log_success "Passed checks: $checks_passed"
     if [ $checks_warned -gt 0 ]; then
@@ -170,22 +170,22 @@ verify_setup() {
 
     echo ""
     if [ $checks_failed -gt 0 ]; then
-        log_error "❌ Some required checks failed!"
+        log_error " Some required checks failed!"
         echo ""
-        echo "🔧 Troubleshooting steps:"
+        echo " Troubleshooting steps:"
         echo "1. Fix the failed checks above"
         echo "2. Re-run: $0 --verify"
         echo "3. Check the troubleshooting guide: TROUBLESHOOTING.md"
         return 1
     else
-        log_success "🎉 All required checks passed!"
+        log_success " All required checks passed!"
         echo ""
-        echo "✨ Next steps:"
+        echo " Next steps:"
         echo "1. Auto-approve mode: ./run.sh"
         echo "2. Manual approval mode: ./run.sh --manual-approval"
         echo "3. Test configuration: ./run.sh --dry-run"
         echo ""
-        log_info "Environment is ready! 🚀"
+        log_info "Environment is ready! "
         return 0
     fi
 }
@@ -416,13 +416,11 @@ deploy_resources() {
     fi
 }
 
-
-
 show_next_steps() {
     echo ""
-    echo "🎉 Setup completed successfully!"
+    echo " Setup completed successfully!"
     echo ""
-    echo "📋 Next steps:"
+    echo " Next steps:"
     echo "1. Update OSDE2E credentials:"
     echo "   kubectl edit secret osde2e-credentials -n $NAMESPACE"
     echo ""
@@ -440,22 +438,22 @@ show_next_steps() {
     echo "   argo list -n $NAMESPACE"
     echo "   argo get <workflow-name> -n $NAMESPACE"
     echo ""
-    echo "🌐 Access Argo UI:"
+    echo " Access Argo UI:"
 
     # Get dynamic external URL
     EXTERNAL_URL=$(get_external_url)
     if [ -n "$EXTERNAL_URL" ]; then
-        echo "   🌍 External: $EXTERNAL_URL"
-        echo "   📍 Local: http://localhost:2746 (via port-forward)"
+        echo "    External: $EXTERNAL_URL"
+        echo "    Local: http://localhost:2746 (via port-forward)"
     else
-        echo "   📍 Local: http://localhost:2746 (via port-forward)"
-        echo "   🌍 External: Not configured - run ./setup-external-access.sh"
+        echo "    Local: http://localhost:2746 (via port-forward)"
+        echo "    External: Not configured - run ./setup-external-access.sh"
     fi
 
     echo "   # Start port forwarding (run in background)"
     echo "   kubectl port-forward svc/argo-server -n argo 2746:2746 &"
     echo ""
-    echo "🔗 Useful commands:"
+    echo " Useful commands:"
     echo "   # Check logs"
     echo "   argo logs <workflow-name> -n $NAMESPACE -f"
     echo "   # Stop port forwarding"
@@ -495,7 +493,7 @@ main() {
         exit $?
     fi
 
-    echo "🚀 OSDE2E Gate Quick Deployment"
+    echo " OSDE2E Gate Quick Deployment"
     echo "==============================="
     echo ""
 

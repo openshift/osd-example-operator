@@ -280,24 +280,24 @@ verify_setup() {
 
     # Check S3 bucket
     if aws s3api head-bucket --bucket "$S3_BUCKET_NAME" 2>/dev/null; then
-        log_success "✓ S3 bucket $S3_BUCKET_NAME is accessible"
+        log_success " S3 bucket $S3_BUCKET_NAME is accessible"
     else
-        log_error "✗ S3 bucket $S3_BUCKET_NAME is not accessible"
+        log_error " S3 bucket $S3_BUCKET_NAME is not accessible"
         return 1
     fi
 
     # Check Kubernetes resources
     if kubectl get configmap artifact-repositories -n "$NAMESPACE" &>/dev/null; then
-        log_success "✓ Artifact repository ConfigMap exists"
+        log_success " Artifact repository ConfigMap exists"
     else
-        log_error "✗ Artifact repository ConfigMap missing"
+        log_error " Artifact repository ConfigMap missing"
         return 1
     fi
 
     if kubectl get secret s3-artifact-credentials -n "$NAMESPACE" &>/dev/null; then
-        log_success "✓ S3 credentials secret exists"
+        log_success " S3 credentials secret exists"
     else
-        log_warning "⚠ S3 credentials secret missing - please update with your AWS credentials"
+        log_warning " S3 credentials secret missing - please update with your AWS credentials"
     fi
 
     log_success "S3 artifact repository setup verification completed"
@@ -319,7 +319,7 @@ show_next_steps() {
     echo "4. S3 Console URL:"
     echo "   https://s3.console.aws.amazon.com/s3/buckets/$S3_BUCKET_NAME"
     echo ""
-    echo "📊 Artifact URL Pattern:"
+    echo " Artifact URL Pattern:"
     echo "   https://$S3_BUCKET_NAME.s3.$S3_REGION.amazonaws.com/YYYY/MM/DD/workflow-name/step-name/"
     echo ""
 }
@@ -400,7 +400,7 @@ main() {
         setup_cross_account="true"
     fi
 
-    echo "🚀 OSDE2E S3 Artifact Repository Setup"
+    echo " OSDE2E S3 Artifact Repository Setup"
     echo "======================================"
     echo ""
 

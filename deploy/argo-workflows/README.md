@@ -16,21 +16,21 @@ This system provides a comprehensive automated test gate that validates your ope
 
 ```
 deploy/argo-workflows/
-├── README.md                      # This comprehensive guide
-├── osde2e-workflow.yaml           # Main WorkflowTemplate
-├── secrets.yaml                   # Credentials template
-├── rbac.yaml                      # RBAC permissions
-├── setup.sh                       # Automated setup script
-├── run.sh                         # Test runner with quality gates
-├── ui.sh                          # UI access management
-├── s3-artifact-config.yaml        # S3 artifact repository config
-├── setup-s3-artifacts.sh          # S3 setup automation
-├── setup-external-access.sh       # External UI access setup
-├── QUALITY-GATES.md               # Quality gate modes and usage
-├── S3-ARTIFACT-SETUP.md           # S3 setup documentation
-├── TROUBLESHOOTING.md             # Comprehensive troubleshooting guide
-├── ARCHITECTURE-DEEP-DIVE.md      # Technical architecture details & test results
-└── .gitignore                     # Git ignore rules
+ README.md                      # This comprehensive guide
+ osde2e-workflow.yaml           # Main WorkflowTemplate
+ secrets.yaml                   # Credentials template
+ rbac.yaml                      # RBAC permissions
+ setup.sh                       # Automated setup script
+ run.sh                         # Test runner with quality gates
+ ui.sh                          # UI access management
+ s3-artifact-config.yaml        # S3 artifact repository config
+ setup-s3-artifacts.sh          # S3 setup automation
+ setup-external-access.sh       # External UI access setup
+ QUALITY-GATES.md               # Quality gate modes and usage
+ S3-ARTIFACT-SETUP.md           # S3 setup documentation
+ TROUBLESHOOTING.md             # Comprehensive troubleshooting guide
+ ARCHITECTURE-DEEP-DIVE.md      # Technical architecture details & test results
+ .gitignore                     # Git ignore rules
 ```
 
 ## Quick Start
@@ -78,7 +78,7 @@ kubectl apply -f secrets-local.yaml
 ./run.sh --manual-approval  # Manual approval mode (for production)
 ```
 
-> **✅ Script Safety**: All scripts are now **conflict-safe** and can be run in any order without causing CrashLoopBackOff issues. They automatically detect and fix configuration conflicts.
+> ** Script Safety**: All scripts are now **conflict-safe** and can be run in any order without causing CrashLoopBackOff issues. They automatically detect and fix configuration conflicts.
 >
 > **New Cluster Tip**: For brand new clusters, start with `./ui.sh --fix --background` to auto-install Argo Workflows.
 >
@@ -227,10 +227,10 @@ kubectl get route argo-server-route -n argo -o jsonpath='{.spec.host}'
 ```
 
 **Benefits of External Access:**
-- ✅ Team members can access UI without port-forwarding
-- ✅ Persistent access across sessions
-- ✅ Clickable links in Slack notifications
-- ✅ Better for demos and collaboration
+-  Team members can access UI without port-forwarding
+-  Persistent access across sessions
+-  Clickable links in Slack notifications
+-  Better for demos and collaboration
 
 ### Step 5: Set Up RBAC Permissions
 
@@ -310,7 +310,7 @@ Once setup is complete, you can run tests in several ways:
 ./run.sh
 
 # Run with manual gate approval (interactive demo mode)
-./run.sh --manual-gate
+./run.sh --manual-approval
 
 # Run with custom images
 ./run.sh quay.io/your-org/operator:v1.0.0 quay.io/your-org/e2e-tests:v1.0.0
@@ -341,7 +341,7 @@ graph LR
     A[Deploy Operator] --> B[Wait for Readiness]
     B --> C[Run OSDE2E Tests]
     C --> D[Collect Artifacts]
-    D --> E[🚦 Test Gate]
+    D --> E[ Test Gate]
     E --> F[Promote & Notify]
     F --> G[Cleanup]
 
@@ -350,12 +350,12 @@ graph LR
 
 ### Gate Benefits
 
-- **🛡️ Quality Assurance**: Only tested operators reach production
-- **👁️ Visibility**: Clear indication of gate status in Argo UI
-- **🔗 Integration Ready**: Easily extensible for real approval systems
-- **📊 Audit Trail**: Complete record of testing and approval decisions
+- ** Quality Assurance**: Only tested operators reach production
+- ** Visibility**: Clear indication of gate status in Argo UI
+- ** Integration Ready**: Easily extensible for real approval systems
+- ** Audit Trail**: Complete record of testing and approval decisions
 
-> 📖 **Learn More**: See [GATE-FEATURE-GUIDE.md](GATE-FEATURE-GUIDE.md) for detailed gate documentation and examples.
+>  **Learn More**: See [GATE-FEATURE-GUIDE.md](GATE-FEATURE-GUIDE.md) for detailed gate documentation and examples.
 
 ### Advanced Test Options
 
@@ -475,7 +475,7 @@ argo logs WORKFLOW_NAME -n argo
 
 ### Common Issues by Category
 
-#### 🖥️ Argo UI Access Issues
+####  Argo UI Access Issues
 
 **Problem: Cannot access Argo UI (New Clusters)**
 ```bash
@@ -503,7 +503,7 @@ tail -f /tmp/argo-ui-port-forward.log
 
 **Problem: Pod in CrashLoopBackOff with duplicate arguments or JSON errors**
 ```bash
-# ✅ FIXED: All scripts now automatically detect and fix these issues
+#  FIXED: All scripts now automatically detect and fix these issues
 
 # 1. Auto-fix duplicate arguments (recommended)
 ./ui.sh --fix --background        # Detects CrashLoopBackOff and fixes duplicates
@@ -595,7 +595,7 @@ kubectl describe pod POD_NAME -n argo
 # Update workflow with imagePullSecrets if required
 ```
 
-#### 🔐 Authentication Issues
+####  Authentication Issues
 
 **Problem: OCM authentication failures**
 ```bash
@@ -621,7 +621,7 @@ kubectl patch secret osde2e-credentials -n argo --type='merge' \
   -p='{"stringData":{"aws-access-key-id":"NEW_VALUE"}}'
 ```
 
-#### 📢 Notification Issues
+####  Notification Issues
 
 **Problem: No Slack notifications received**
 ```bash
@@ -801,10 +801,10 @@ pipeline {
 All artifacts are stored in a unified structure:
 ```
 workflows/operator-name/cluster-id/timestamp/
-├── argo-logs/              # Workflow step logs
-├── artifacts/              # Test outputs & reports
-├── test-summary.json       # Results summary
-└── test-report.html        # Formatted report
+ argo-logs/              # Workflow step logs
+ artifacts/              # Test outputs & reports
+ test-summary.json       # Results summary
+ test-report.html        # Formatted report
 ```
 
 ### Essential Commands
@@ -839,7 +839,7 @@ argo list -n argo                    # List workflows
 - **[S3-ARTIFACT-SETUP.md](S3-ARTIFACT-SETUP.md)** - Complete S3 artifact storage setup guide
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Comprehensive troubleshooting guide for common issues
 - **[QUALITY-GATES.md](QUALITY-GATES.md)** - Quality gate modes, usage, and workflow execution guide
-- **[ARCHITECTURE-DEEP-DIVE.md](ARCHITECTURE-DEEP-DIVE.md)** - Technical architecture details and OSDE2E test results storage guide
+- **[ARCHITECTURE-DEEP-DIVE.md](ARCHITECTURE-DEEP-DIVE.md)** - Technical architecture details and test results
 
 ### Quick Reference Scripts
 - **`./ui.sh --help`** - UI access management options

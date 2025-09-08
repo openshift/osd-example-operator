@@ -9,6 +9,7 @@ NAMESPACE="argo"
 PORT="2746"
 BACKGROUND=false
 FIX_MODE=false
+GET_URL_MODE=false
 
 # Color output
 RED='\033[0;31m'
@@ -79,7 +80,7 @@ done
 
 # Function to fix UI issues
 fix_ui_issues() {
-    log_info "🔧 Fixing Argo UI access issues..."
+    log_info " Fixing Argo UI access issues..."
 
     # Check if argo-server deployment exists
     if ! kubectl get deployment argo-server -n $NAMESPACE >/dev/null 2>&1; then
@@ -115,8 +116,12 @@ fix_ui_issues() {
 
     # Get current args and count occurrences
     local current_args=$(kubectl get deployment argo-server -n $NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null || echo "[]")
-    local has_auth=$(echo "$current_args" | grep -c "auth-mode=server" || echo "0")
-    local has_secure=$(echo "$current_args" | grep -c "secure=false" || echo "0")
+    local has_auth=$(echo "$current_args" | grep -c "auth-mode=server" 2>/dev/null || echo "0")
+    local has_secure=$(echo "$current_args" | grep -c "secure=false" 2>/dev/null || echo "0")
+
+    # Clean up the counts (remove any whitespace)
+    has_auth=$(echo "$has_auth" | tr -d ' \n\r\t')
+    has_secure=$(echo "$has_secure" | tr -d ' \n\r\t')
 
     # Only configure if not already configured correctly (exactly once each)
     if [ "$has_auth" -ne 1 ] || [ "$has_secure" -ne 1 ]; then
@@ -144,10 +149,18 @@ fix_ui_issues() {
 
     # Wait for rollout
     log_info "Waiting for deployment to be ready..."
-    if ! kubectl rollout status deployment/argo-server -n $NAMESPACE --timeout=120s; then
-        log_error "Deployment rollout failed"
+    if ! kubectl rollout status deployment/argo-server -n $NAMESPACE --timeout=300s; then
+        log_warn "Deployment rollout took longer than expected"
         kubectl get pods -n $NAMESPACE -l app=argo-server
-        return 1
+
+        # Check if pods are actually running despite rollout timeout
+        local running_pods=$(kubectl get pods -n $NAMESPACE -l app=argo-server --field-selector=status.phase=Running -o name 2>/dev/null | wc -l | tr -d ' \n\r\t')
+        if [ "$running_pods" -gt 0 ]; then
+            log_info "Found running argo-server pods, continuing..."
+        else
+            log_error "No running argo-server pods found"
+            return 1
+        fi
     fi
 
     # Clean up existing port-forwards
@@ -212,20 +225,20 @@ start_port_forward() {
 
         if [ "$connection_established" = true ]; then
             log_success "Port-forward started successfully in background (PID: $PF_PID)"
-            log_success "🌐 Argo UI Access Options:"
-            log_info "  📍 Local: http://localhost:$PORT"
+            log_success " Argo UI Access Options:"
+            log_info "   Local: http://localhost:$PORT"
 
             # Get dynamic external URL
             EXTERNAL_URL=$(get_external_url)
             if [ -n "$EXTERNAL_URL" ]; then
-                log_info "  🌍 External: $EXTERNAL_URL"
+                log_info "   External: $EXTERNAL_URL"
             else
-                log_info "  🌍 External: Not configured (run ./setup-external-access.sh)"
+                log_info "   External: Not configured (run ./setup-external-access.sh)"
             fi
 
-            echo "📋 To stop: kill $PF_PID"
-            echo "📋 Logs: tail -f /tmp/argo-ui-port-forward.log"
-            echo "📋 Test connection: curl http://localhost:$PORT/api/v1/info"
+            echo " To stop: kill $PF_PID"
+            echo " Logs: tail -f /tmp/argo-ui-port-forward.log"
+            echo " Test connection: curl http://localhost:$PORT/api/v1/info"
         else
             log_error "Failed to establish connection through port-forward"
             log_info "This might be normal for newly installed Argo - the UI may take a few minutes to be fully ready"
@@ -235,15 +248,15 @@ start_port_forward() {
         fi
     else
         log_info "Starting port-forward (Press Ctrl+C to stop)..."
-        log_success "🌐 Argo UI Access Options:"
-        log_info "  📍 Local: http://localhost:$PORT"
+        log_success " Argo UI Access Options:"
+        log_info "   Local: http://localhost:$PORT"
 
         # Get dynamic external URL
         EXTERNAL_URL=$(get_external_url)
         if [ -n "$EXTERNAL_URL" ]; then
-            log_info "  🌍 External: $EXTERNAL_URL"
+            log_info "   External: $EXTERNAL_URL"
         else
-            log_info "  🌍 External: Not configured (run ./setup-external-access.sh)"
+            log_info "   External: Not configured (run ./setup-external-access.sh)"
         fi
 
         echo ""
@@ -301,41 +314,41 @@ get_external_url() {
 
 # Function to show UI URLs
 show_urls() {
-    echo "🌐 Current Argo Workflows UI URLs"
+    echo " Current Argo Workflows UI URLs"
     echo "=================================="
     echo ""
-    
+
     # Check if kubectl is available
     if ! command -v kubectl &> /dev/null; then
         log_warn "kubectl is not installed or not in PATH"
         exit 1
     fi
-    
+
     # Check if namespace exists
     if ! kubectl get namespace $NAMESPACE >/dev/null 2>&1; then
         log_warn "Namespace '$NAMESPACE' not found"
         exit 1
     fi
-    
+
     # Check if argo-server exists
     if ! kubectl get deployment argo-server -n $NAMESPACE >/dev/null 2>&1; then
         log_warn "argo-server deployment not found in namespace $NAMESPACE"
         log_info "Run: ./setup.sh --fix  # to install Argo Workflows"
         exit 1
     fi
-    
+
     # Get URLs
-    log_info "📍 Local URL (via port-forward):"
+    log_info " Local URL (via port-forward):"
     echo "   http://localhost:$PORT"
     echo "   Command: kubectl port-forward svc/argo-server -n argo $PORT:2746"
     echo ""
-    
-    log_info "🌍 External URL:"
+
+    log_info " External URL:"
     EXTERNAL_URL=$(get_external_url)
     if [ -n "$EXTERNAL_URL" ]; then
         echo "   $EXTERNAL_URL"
         log_success "External access is configured"
-        
+
         # Test if external URL is accessible
         if curl -s --connect-timeout 5 "$EXTERNAL_URL/api/v1/info" >/dev/null 2>&1; then
             log_success "External URL is accessible"
@@ -349,9 +362,9 @@ show_urls() {
         echo "   ./setup-external-access.sh --type ingress    # For Kubernetes"
         echo "   ./setup-external-access.sh --type loadbalancer  # For cloud"
     fi
-    
+
     echo ""
-    log_info "🔗 Quick access commands:"
+    log_info " Quick access commands:"
     echo "   ./ui.sh --background    # Start local port-forward"
     echo "   ./ui.sh                 # Start interactive port-forward"
 }
@@ -364,17 +377,17 @@ test_connection() {
     # Try multiple endpoints to test connectivity
     if curl -s --connect-timeout 5 http://localhost:$PORT/api/v1/info >/dev/null 2>&1 || \
        curl -s --connect-timeout 5 http://localhost:$PORT/ >/dev/null 2>&1; then
-        log_success "✅ Connection successful!"
+        log_success " Connection successful!"
         return 0
     else
-        log_warn "⚠️  Connection test failed"
+        log_warn "  Connection test failed"
         return 1
     fi
 }
 
 # Function to install Argo Workflows
 install_argo_workflows() {
-    log_info "🔧 Installing Argo Workflows..."
+    log_info " Installing Argo Workflows..."
 
     # Create namespace if it doesn't exist
     if ! kubectl get namespace $NAMESPACE >/dev/null 2>&1; then
@@ -419,10 +432,18 @@ install_argo_workflows() {
 
     # Wait for rollout after configuration
     log_info "Waiting for configuration to take effect..."
-    kubectl rollout status deployment/argo-server -n $NAMESPACE --timeout=120s || {
-        log_error "Failed to apply configuration changes"
-        return 1
-    }
+    if ! kubectl rollout status deployment/argo-server -n $NAMESPACE --timeout=300s; then
+        log_warn "Configuration rollout took longer than expected"
+
+        # Check if pods are actually running despite rollout timeout
+        local running_pods=$(kubectl get pods -n $NAMESPACE -l app=argo-server --field-selector=status.phase=Running -o name 2>/dev/null | wc -l | tr -d ' \n\r\t')
+        if [ "$running_pods" -gt 0 ]; then
+            log_info "Found running argo-server pods, continuing..."
+        else
+            log_error "Failed to apply configuration changes"
+            return 1
+        fi
+    fi
 
     log_success "Argo Workflows installed and configured successfully!"
     return 0
@@ -431,12 +452,12 @@ install_argo_workflows() {
 # Main execution
 main() {
     # Handle --get-url mode first
-    if [ "$GET_URL_MODE" = true ]; then
+    if [ "${GET_URL_MODE:-false}" = true ]; then
         show_urls
         exit 0
     fi
 
-    echo "🚀 Argo Workflows UI Access"
+    echo " Argo Workflows UI Access"
     echo "=========================="
 
     # Check if kubectl is available

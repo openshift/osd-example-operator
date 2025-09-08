@@ -12,7 +12,7 @@ OPERATOR_IMAGE="quay.io/rh_ee_yiqzhang/osd-example-operator:latest"
 TEST_HARNESS_IMAGE="quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857"
 OPERATOR_NAME="osd-example-operator"
 OPERATOR_NAMESPACE="argo"
-CLUSTER_ID="2ktc30g984vfcninfhgbd5ok1tn5e2b5"
+CLUSTER_ID="2l5r5un9mlja28nr7uurptg33qdtnfbd"
 CLEANUP_ON_FAILURE="true"
 
 # Gate mode configuration
