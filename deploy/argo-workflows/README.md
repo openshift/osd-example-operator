@@ -138,7 +138,7 @@ kubectl rollout status deployment/argo-server -n argo --timeout=120s
 **Two Access Methods Available:**
 
 1. **External Access (Recommended for Team Sharing)**
-   - URL: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org
+   - URL: http://argo-server-route-argo.apps.yiq-int.dyeo.i1.devshift.org
    - Accessible by anyone with network access
    - No port-forwarding required
    - Persistent across sessions
@@ -170,7 +170,7 @@ The script will automatically:
 - Test connectivity
 - Open the UI at:
   - **Local access**: http://localhost:2746 (via port-forward)
-  - **External access**: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org (OpenShift Route)
+  - **External access**: http://argo-server-route-argo.apps.yiq-int.dyeo.i1.devshift.org (OpenShift Route)
 
 **Option B: Manual port forwarding**
 
@@ -180,7 +180,7 @@ kubectl port-forward svc/argo-server 2746:2746 -n argo &
 
 # Access options:
 # - Local: http://localhost:2746
-# - External: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org
+# - External: http://argo-server-route-argo.apps.yiq-int.dyeo.i1.devshift.org
 ```
 
 **Having Issues?** See the comprehensive [Troubleshooting](#-troubleshooting) section below.
@@ -409,12 +409,12 @@ argo submit --from workflowtemplate/osde2e-workflow -n argo \
 
 The workflow executes a comprehensive 6-step test pipeline:
 
-1. **Deploy Operator** → Deploys your operator image to the target cluster
-2. **Wait for Readiness** → Ensures operator is running and healthy
-3. **Run OSDE2E Tests** → Executes your test harness against the operator
-4. **Collect Results** → Gathers test outputs and logs
-5. **Send Notifications** → Notifies via Slack with results and links
-6. **Cleanup** → Removes test resources (optional)
+1. **Deploy Operator** - Deploys your operator image to the target cluster
+2. **Wait for Readiness** - Ensures operator is running and healthy
+3. **Run OSDE2E Tests** - Executes your test harness against the operator
+4. **Collect Results** - Gathers test outputs and logs
+5. **Send Notifications** - Notifies via Slack with results and links
+6. **Cleanup** - Removes test resources (optional)
 
 ### Configurable Parameters
 
@@ -437,7 +437,7 @@ The workflow executes a comprehensive 6-step test pipeline:
 ### Quick Setup
 
 1. **Create Slack Webhook:**
-   - Visit [Slack API Apps](https://api.slack.com/apps) → "Create New App"
+   - Visit [Slack API Apps](https://api.slack.com/apps) - "Create New App"
    - Enable "Incoming Webhooks" and create webhook for your channel
    - Copy the webhook URL
 

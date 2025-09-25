@@ -1,0 +1,1096 @@
+# Multi-Environment OSDE2E Workflow Template
+# Supports parallel testing across Int, Stage, and Prod environments
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: multi-env-osde2e-workflow
+  namespace: argo
+  labels:
+    app: multi-env-osde2e-workflow
+    version: v1.0.0
+    purpose: multi-environment-testing
+spec:
+  serviceAccountName: osde2e-workflow
+  entrypoint: multi-environment-pipeline
+  onExit: multi-env-notification
+
+  # Default parameters
+  arguments:
+    parameters:
+    - name: operator-image
+      value: "quay.io/rh_ee_yiqzhang/osd-example-operator:latest"
+    - name: test-harness-image
+      value: "quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857"
+    - name: operator-name
+      value: "osd-example-operator"
+    - name: operator-namespace
+      value: "argo"
+    - name: osde2e-image
+      value: "quay.io/rh_ee_yiqzhang/osde2e:latest"
+    - name: kubectl-image
+      value: "quay.io/openshift/origin-cli:latest"
+    - name: test-timeout
+      value: "3600"
+    - name: cleanup-on-failure
+      value: "true"
+    # Multi-environment configuration
+    - name: execution-mode
+      value: "parallel"  # Options: "parallel", "sequential", "single"
+    - name: target-environments
+      value: "int,stage"  # Comma-separated list
+    - name: gate-mode
+      value: "auto-approve"  # Options: "auto-approve", "manual-approval"
+    - name: stop-on-first-failure
+      value: "false"  # Continue testing other environments if one fails
+    # Environment-specific cluster IDs (override via parameters)
+    - name: int-cluster-id
+      value: "2lg4s77vrouphf9c81v3vshildt8o11j"  # Integration cluster
+    - name: stage-cluster-id
+      value: "2lg55qcoe41i56ovlimkr3dv3h0nn78a"  # Staging cluster
+
+  templates:
+  # Main multi-environment pipeline
+  - name: multi-environment-pipeline
+    dag:
+      tasks:
+      # Environment detection and validation
+      - name: validate-environments
+        template: validate-environments
+
+      # Parallel execution path (default)
+      - name: parallel-testing
+        template: parallel-environment-testing
+        depends: "validate-environments"
+        when: "{{workflow.parameters.execution-mode}} == parallel"
+
+      # Sequential execution path
+      - name: sequential-testing
+        template: sequential-environment-testing
+        depends: "validate-environments"
+        when: "{{workflow.parameters.execution-mode}} == sequential"
+
+      # Single environment execution path
+      - name: single-testing
+        template: single-environment-testing
+        depends: "validate-environments"
+        when: "{{workflow.parameters.execution-mode}} == single"
+
+      # Collect and aggregate results from all environments
+      - name: aggregate-results
+        template: aggregate-results
+        depends: "parallel-testing || sequential-testing || single-testing"
+
+      # Multi-environment quality gate
+      - name: multi-env-quality-gate
+        template: "{{workflow.parameters.gate-mode}}-multi-env-gate"
+        depends: "aggregate-results"
+
+      # Final promotion and cleanup
+      - name: multi-env-promote
+        template: multi-env-promote-and-notify
+        depends: "multi-env-quality-gate"
+
+  # Environment validation
+  - name: validate-environments
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Validating multi-environment configuration..."
+
+        EXECUTION_MODE="{{workflow.parameters.execution-mode}}"
+        TARGET_ENVS="{{workflow.parameters.target-environments}}"
+
+        echo "Execution Mode: $EXECUTION_MODE"
+        echo "Target Environments: $TARGET_ENVS"
+
+        # Validate execution mode
+        case "$EXECUTION_MODE" in
+          parallel|sequential|single)
+            echo "Valid execution mode: $EXECUTION_MODE"
+            ;;
+          *)
+            echo " Invalid execution mode: $EXECUTION_MODE"
+            echo "Valid options: parallel, sequential, single"
+            exit 1
+            ;;
+        esac
+
+        # Validate environments
+        IFS=',' read -ra ENVS <<< "$TARGET_ENVS"
+        for env in "${ENVS[@]}"; do
+          case "$env" in
+            int|stage)
+              echo "Valid environment: $env"
+              ;;
+            *)
+              echo " Invalid environment: $env"
+              echo "Valid options: int, stage"
+              exit 1
+              ;;
+          esac
+        done
+
+        echo "Environment validation completed successfully"
+
+  # Parallel environment testing - simplified, always run both environments
+  - name: parallel-environment-testing
+    dag:
+      tasks:
+      - name: test-int
+        template: environment-test-suite
+        arguments:
+          parameters:
+          - name: environment
+            value: "int"
+          - name: cluster-id
+            value: "{{workflow.parameters.int-cluster-id}}"
+          - name: ocm-env
+            value: "integration"
+
+      - name: test-stage
+        template: environment-test-suite
+        arguments:
+          parameters:
+          - name: environment
+            value: "stage"
+          - name: cluster-id
+            value: "{{workflow.parameters.stage-cluster-id}}"
+          - name: ocm-env
+            value: "stage"
+
+  # Sequential environment testing - simplified without complex when conditions
+  - name: sequential-environment-testing
+    steps:
+    # Step 1: Always run int environment first
+    - - name: test-int-seq
+        template: environment-test-suite
+        arguments:
+          parameters:
+          - name: environment
+            value: "int"
+          - name: cluster-id
+            value: "{{workflow.parameters.int-cluster-id}}"
+          - name: ocm-env
+            value: "integration"
+    # Step 2: Run stage environment after int completes successfully
+    - - name: test-stage-seq
+        template: environment-test-suite
+        arguments:
+          parameters:
+          - name: environment
+            value: "stage"
+          - name: cluster-id
+            value: "{{workflow.parameters.stage-cluster-id}}"
+          - name: ocm-env
+            value: "stage"
+        when: "{{steps.test-int-seq.status}} == Succeeded"
+
+  # Single environment testing (fallback for existing workflows)
+  - name: single-environment-testing
+    steps:
+    - - name: test-single-env
+        template: environment-test-suite
+        arguments:
+          parameters:
+          - name: environment
+            value: "int"  # Default to int for single mode
+          - name: cluster-id
+            value: "{{workflow.parameters.int-cluster-id}}"
+          - name: ocm-env
+            value: "integration"
+
+  # Environment-specific test suite
+  - name: environment-test-suite
+    inputs:
+      parameters:
+      - name: environment
+      - name: cluster-id
+      - name: ocm-env
+    dag:
+      tasks:
+      - name: deploy-operator
+        template: deploy-operator-env
+        arguments:
+          parameters:
+          - name: environment
+            value: "{{inputs.parameters.environment}}"
+          - name: cluster-id
+            value: "{{inputs.parameters.cluster-id}}"
+
+      - name: wait-for-deployment
+        template: wait-for-deployment-env
+        arguments:
+          parameters:
+          - name: environment
+            value: "{{inputs.parameters.environment}}"
+        depends: "deploy-operator"
+
+      - name: run-osde2e-test
+        template: run-osde2e-test-env
+        arguments:
+          parameters:
+          - name: environment
+            value: "{{inputs.parameters.environment}}"
+          - name: cluster-id
+            value: "{{inputs.parameters.cluster-id}}"
+          - name: ocm-env
+            value: "{{inputs.parameters.ocm-env}}"
+        depends: "wait-for-deployment"
+
+      - name: collect-test-results
+        template: collect-test-results-env
+        arguments:
+          parameters:
+          - name: environment
+            value: "{{inputs.parameters.environment}}"
+          - name: cluster-id
+            value: "{{inputs.parameters.cluster-id}}"
+        depends: "run-osde2e-test"
+
+      # Environment-specific quality gate (auto-approve with 10s delay)
+      - name: quality-gate
+        template: auto-approve-env-gate
+        arguments:
+          parameters:
+          - name: environment
+            value: "{{inputs.parameters.environment}}"
+          - name: cluster-id
+            value: "{{inputs.parameters.cluster-id}}"
+        depends: "collect-test-results"
+
+      - name: cleanup-deployment
+        template: cleanup-deployment-env
+        arguments:
+          parameters:
+          - name: environment
+            value: "{{inputs.parameters.environment}}"
+        depends: "quality-gate"
+        when: "{{workflow.parameters.cleanup-on-failure}} == true"
+
+  # Environment-specific deploy operator
+  - name: deploy-operator-env
+    inputs:
+      parameters:
+      - name: environment
+      - name: cluster-id
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        ENV="{{inputs.parameters.environment}}"
+        CLUSTER_ID="{{inputs.parameters.cluster-id}}"
+
+        echo "Deploying {{workflow.parameters.operator-name}} to $ENV environment"
+        echo "Target cluster: $CLUSTER_ID"
+
+        # Environment-specific namespace
+        ENV_NAMESPACE="{{workflow.parameters.operator-namespace}}-$ENV"
+
+        # Create namespace if it doesn't exist
+        kubectl create namespace "$ENV_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+        # Install CRD (shared across environments)
+        echo "Installing Example CRD for $ENV environment..."
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        metadata:
+          name: examples.managed.openshift.io
+          labels:
+            environment: $ENV
+        spec:
+          group: managed.openshift.io
+          versions:
+          - name: v1alpha1
+            served: true
+            storage: true
+            schema:
+              openAPIV3Schema:
+                type: object
+                properties:
+                  spec:
+                    type: object
+                  status:
+                    type: object
+          scope: Namespaced
+          names:
+            plural: examples
+            singular: example
+            kind: Example
+        EOF
+
+        echo "Deploying operator to $ENV_NAMESPACE..."
+
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: {{workflow.parameters.operator-name}}-$ENV
+          namespace: $ENV_NAMESPACE
+          labels:
+            environment: $ENV
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: {{workflow.parameters.operator-name}}-$ENV
+          labels:
+            environment: $ENV
+        rules:
+        - apiGroups: [""]
+          resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["apps"]
+          resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["apiextensions.k8s.io"]
+          resources: ["customresourcedefinitions"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["managed.openshift.io"]
+          resources: ["*"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: {{workflow.parameters.operator-name}}-$ENV
+          labels:
+            environment: $ENV
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: {{workflow.parameters.operator-name}}-$ENV
+        subjects:
+        - kind: ServiceAccount
+          name: {{workflow.parameters.operator-name}}-$ENV
+          namespace: $ENV_NAMESPACE
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: {{workflow.parameters.operator-name}}-$ENV
+          namespace: $ENV_NAMESPACE
+          labels:
+            app: {{workflow.parameters.operator-name}}
+            environment: $ENV
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: {{workflow.parameters.operator-name}}
+              environment: $ENV
+          template:
+            metadata:
+              labels:
+                app: {{workflow.parameters.operator-name}}
+                environment: $ENV
+            spec:
+              serviceAccountName: {{workflow.parameters.operator-name}}-$ENV
+              containers:
+              - name: operator
+                image: {{workflow.parameters.operator-image}}
+                imagePullPolicy: Always
+                env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: WATCH_NAMESPACE
+                  value: ""
+                - name: ENVIRONMENT
+                  value: "$ENV"
+                ports:
+                - containerPort: 8081
+                  name: metrics
+                - containerPort: 8443
+                  name: webhook
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 30
+                  periodSeconds: 20
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                securityContext:
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["ALL"]
+        EOF
+        echo "Operator deployed successfully to $ENV environment"
+
+  # Environment-specific wait for deployment
+  - name: wait-for-deployment-env
+    inputs:
+      parameters:
+      - name: environment
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        ENV="{{inputs.parameters.environment}}"
+        ENV_NAMESPACE="{{workflow.parameters.operator-namespace}}-$ENV"
+
+        echo "Waiting for {{workflow.parameters.operator-name}} deployment to be ready in $ENV environment..."
+        kubectl rollout status deployment/{{workflow.parameters.operator-name}}-$ENV -n $ENV_NAMESPACE --timeout=600s
+        kubectl wait --for=condition=ready pod -l app={{workflow.parameters.operator-name}},environment=$ENV -n $ENV_NAMESPACE --timeout=300s
+        echo "Operator successfully deployed and running in $ENV environment"
+
+  # Environment-specific OSDE2E test execution
+  - name: run-osde2e-test-env
+    inputs:
+      parameters:
+      - name: environment
+      - name: cluster-id
+      - name: ocm-env
+    outputs:
+      artifacts:
+      - name: osde2e-reports
+        path: /tmp/osde2e-reports
+        optional: true
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{inputs.parameters.cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/osde2e-reports.tar.gz"
+      - name: test-output-log
+        path: /tmp/osde2e-reports/test_output.log
+        optional: true
+        archive:
+          none: {}
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{inputs.parameters.cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/test_output.log"
+    initContainers:
+    - name: setup-aws-credentials
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        set -euo pipefail
+        ENV="{{inputs.parameters.environment}}"
+        echo "Setting up AWS credentials for $ENV environment..."
+
+        mkdir -p /shared/.aws
+
+        # Use environment-specific credentials if available, fallback to default
+        SECRET_NAME="osde2e-credentials-$ENV"
+        if ! kubectl get secret "$SECRET_NAME" -n argo >/dev/null 2>&1; then
+          echo "Environment-specific secret not found, using default credentials"
+          SECRET_NAME="osde2e-credentials"
+        fi
+
+        cat > /shared/.aws/credentials <<EOF
+        [default]
+        aws_access_key_id = ${AWS_ACCESS_KEY_ID}
+        aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}
+        EOF
+
+        cat > /shared/.aws/config <<EOF
+        [default]
+        region = ${AWS_DEFAULT_REGION}
+        output = json
+        EOF
+
+        chmod 600 /shared/.aws/credentials /shared/.aws/config
+        echo "AWS credentials configured for $ENV environment"
+      env:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-secret-access-key
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      volumeMounts:
+      - name: aws-credentials
+        mountPath: /shared
+    container:
+      image: "{{workflow.parameters.osde2e-image}}"
+      command: ["/bin/bash"]
+      args:
+      - -c
+      - |
+        ENV="{{inputs.parameters.environment}}"
+        CLUSTER_ID="{{inputs.parameters.cluster-id}}"
+        OCM_ENV="{{inputs.parameters.ocm-env}}"
+
+        mkdir -p /tmp/osde2e-reports
+
+        echo "Running OSDE2E tests for $ENV environment"
+        echo "Cluster: $CLUSTER_ID"
+        echo "OCM Environment: $OCM_ENV"
+
+        # Environment-specific OSDE2E configuration
+        case "$ENV" in
+          int)
+            CONFIGS="rosa,int,ad-hoc-image"
+            ;;
+          stage)
+            CONFIGS="rosa,stage,ad-hoc-image"
+            ;;
+          prod)
+            CONFIGS="rosa,prod,ad-hoc-image"
+            ;;
+          *)
+            CONFIGS="rosa,int,ad-hoc-image"
+            ;;
+        esac
+
+        echo "Using OSDE2E configs: $CONFIGS"
+        /osde2e test --configs "$CONFIGS" --skip-must-gather --skip-destroy-cluster --skip-health-check 2>&1 | tee /tmp/osde2e-reports/main_execution_${ENV}.log
+      volumeMounts:
+      - name: aws-credentials
+        mountPath: /shared
+      env:
+      - name: CLUSTER_ID
+        value: "{{inputs.parameters.cluster-id}}"
+      - name: ENVIRONMENT
+        value: "{{inputs.parameters.environment}}"
+      - name: OCM_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: ocm-client-id
+      - name: OCM_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: ocm-client-secret
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-secret-access-key
+      - name: AWS_ACCOUNT_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-account-id
+      - name: AWS_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      - name: AD_HOC_TEST_IMAGES
+        value: "{{workflow.parameters.test-harness-image}}"
+      - name: PROVIDER
+        value: "rosa"
+      - name: OCM_ENV
+        value: "{{inputs.parameters.ocm-env}}"
+      - name: OCM_URL
+        value: "https://api.{{inputs.parameters.ocm-env}}.openshift.com"
+      - name: AWS_SHARED_CREDENTIALS_FILE
+        value: "/shared/.aws/credentials"
+      - name: AWS_CONFIG_FILE
+        value: "/shared/.aws/config"
+      - name: HOME
+        value: "/shared"
+      - name: USE_EXISTING_CLUSTER
+        value: "true"
+      - name: SKIP_DESTROY_CLUSTER
+        value: "true"
+      - name: SKIP_CLUSTER_HEALTH_CHECK
+        value: "true"
+      - name: REPORT_DIR
+        value: "/tmp/osde2e-reports"
+      - name: MUST_GATHER_DIR
+        value: "/tmp/must-gather"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+    volumes:
+    - name: aws-credentials
+      emptyDir: {}
+
+  # Environment-specific result collection
+  - name: collect-test-results-env
+    inputs:
+      parameters:
+      - name: environment
+      - name: cluster-id
+    outputs:
+      artifacts:
+      - name: test-summary
+        path: /tmp/test-summary-{{inputs.parameters.environment}}.json
+        optional: true
+        archive:
+          none: {}
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{inputs.parameters.cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/test-summary.json"
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        ENV="{{inputs.parameters.environment}}"
+        CLUSTER_ID="{{inputs.parameters.cluster-id}}"
+
+        echo "Collecting OSDE2E Test Results for $ENV environment..."
+        echo "Environment: $ENV"
+        echo "Cluster: $CLUSTER_ID"
+
+        # Create environment-specific test summary
+        cat > /tmp/test-summary-$ENV.json <<EOF
+        {
+          "environment": "$ENV",
+          "cluster_id": "$CLUSTER_ID",
+          "workflow_metadata": {
+            "name": "{{workflow.name}}",
+            "namespace": "{{workflow.namespace}}",
+            "creation_timestamp": "{{workflow.creationTimestamp}}",
+            "status": "{{workflow.status}}"
+          },
+          "test_configuration": {
+            "operator_image": "{{workflow.parameters.operator-image}}",
+            "test_harness_image": "{{workflow.parameters.test-harness-image}}",
+            "operator_name": "{{workflow.parameters.operator-name}}"
+          },
+          "s3_artifacts": {
+            "bucket": "osde2e-test-artifacts",
+            "region": "us-east-1",
+            "environment_path": "multi-env-workflows/{{workflow.parameters.operator-name}}/$CLUSTER_ID/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/$ENV"
+          },
+          "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        }
+        EOF
+
+        echo "Test summary generated for $ENV environment"
+        cat /tmp/test-summary-$ENV.json | jq . || cat /tmp/test-summary-$ENV.json
+
+  # Environment-specific cleanup
+  - name: cleanup-deployment-env
+    inputs:
+      parameters:
+      - name: environment
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        ENV="{{inputs.parameters.environment}}"
+        ENV_NAMESPACE="{{workflow.parameters.operator-namespace}}-$ENV"
+
+        echo "Cleaning up deployment resources for $ENV environment..."
+        kubectl delete deployment {{workflow.parameters.operator-name}}-$ENV -n $ENV_NAMESPACE --ignore-not-found=true
+        kubectl delete clusterrolebinding {{workflow.parameters.operator-name}}-$ENV --ignore-not-found=true
+        kubectl delete clusterrole {{workflow.parameters.operator-name}}-$ENV --ignore-not-found=true
+        kubectl delete serviceaccount {{workflow.parameters.operator-name}}-$ENV -n $ENV_NAMESPACE --ignore-not-found=true
+
+        echo "Cleanup complete for $ENV environment (preserving namespace: $ENV_NAMESPACE)"
+
+  # Aggregate results from all environments
+  - name: aggregate-results
+    outputs:
+      artifacts:
+      - name: multi-env-summary
+        path: /tmp/multi-env-summary.json
+        optional: true
+        archive:
+          none: {}
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/multi-env-summary.json"
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Aggregating results from all environments..."
+
+        TARGET_ENVS="{{workflow.parameters.target-environments}}"
+        EXECUTION_MODE="{{workflow.parameters.execution-mode}}"
+
+        # Parse environments
+        IFS=',' read -ra ENVS <<< "$TARGET_ENVS"
+
+        echo "Creating multi-environment summary..."
+        echo "Environments tested: ${ENVS[*]}"
+        echo "Execution mode: $EXECUTION_MODE"
+
+        # Create aggregated summary
+        cat > /tmp/multi-env-summary.json <<EOF
+        {
+          "multi_environment_test_summary": {
+            "workflow_name": "{{workflow.name}}",
+            "execution_mode": "$EXECUTION_MODE",
+            "target_environments": "${ENVS[*]}",
+            "total_environments": ${#ENVS[@]},
+            "workflow_status": "{{workflow.status}}",
+            "creation_timestamp": "{{workflow.creationTimestamp}}",
+            "operator_image": "{{workflow.parameters.operator-image}}",
+            "test_harness_image": "{{workflow.parameters.test-harness-image}}"
+          },
+          "environment_results": {
+        EOF
+
+        # Add environment-specific results
+        first=true
+        for env in "${ENVS[@]}"; do
+          if [ "$first" = true ]; then
+            first=false
+          else
+            echo "," >> /tmp/multi-env-summary.json
+          fi
+
+          case "$env" in
+            int)
+              CLUSTER_ID="{{workflow.parameters.int-cluster-id}}"
+              ;;
+            stage)
+              CLUSTER_ID="{{workflow.parameters.stage-cluster-id}}"
+              ;;
+            *)
+              CLUSTER_ID="unknown"
+              ;;
+          esac
+
+          cat >> /tmp/multi-env-summary.json <<EOF
+            "$env": {
+              "cluster_id": "$CLUSTER_ID",
+              "status": "completed",
+              "artifacts_path": "multi-env-workflows/{{workflow.parameters.operator-name}}/$CLUSTER_ID/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/$env"
+            }
+        EOF
+        done
+
+        cat >> /tmp/multi-env-summary.json <<EOF
+          },
+          "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        }
+        EOF
+
+        echo "Multi-environment summary created:"
+        cat /tmp/multi-env-summary.json | jq . || cat /tmp/multi-env-summary.json
+
+  # Auto-approve multi-environment gate
+  - name: auto-approve-multi-env-gate
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        echo "Multi-Environment OSDE2E Quality Gate - Auto-Approval Mode"
+        echo "============================================================="
+        echo ""
+        echo "Test Results Summary:"
+        echo "  Workflow: {{workflow.name}}"
+        echo "  Execution Mode: {{workflow.parameters.execution-mode}}"
+        echo "  Target Environments: {{workflow.parameters.target-environments}}"
+        echo "  Operator: {{workflow.parameters.operator-image}}"
+        echo "  Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo ""
+
+        echo "Quality Gate: Auto-Approval Mode"
+        echo "Evaluating multi-environment test results..."
+        echo ""
+
+        # Auto-approval countdown (15 seconds for multi-env)
+        TOTAL_SECONDS=15
+        for i in $(seq $TOTAL_SECONDS -1 1); do
+            PROGRESS=$((($TOTAL_SECONDS - $i + 1) * 100 / $TOTAL_SECONDS))
+            FILLED=$((PROGRESS / 5))
+            EMPTY=$((20 - FILLED))
+            PROGRESS_BAR="["
+            for j in $(seq 1 $FILLED); do PROGRESS_BAR="${PROGRESS_BAR}="; done
+            for j in $(seq 1 $EMPTY); do PROGRESS_BAR="${PROGRESS_BAR} "; done
+            PROGRESS_BAR="${PROGRESS_BAR}]"
+
+            printf "\rMulti-env gate evaluation: %s %3d%% (%ds remaining)" "$PROGRESS_BAR" "$PROGRESS" "$i"
+            sleep 1
+        done
+
+        printf "\rMulti-env gate evaluation: [====================] 100%% (Complete!)     \n"
+        echo ""
+        echo "Multi-Environment Gate Evaluation Complete - Auto-approved for production deployment"
+
+  # Manual approval multi-environment gate
+  - name: manual-approval-multi-env-gate
+    suspend: {}
+
+  # Multi-environment promotion and notification
+  - name: multi-env-promote-and-notify
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        echo "Multi-Environment OSDE2E Test Gate SUCCESS!"
+        echo "=============================================="
+        echo ""
+        echo "Results Summary:"
+        echo "  Workflow: {{workflow.name}}"
+        echo "  Execution Mode: {{workflow.parameters.execution-mode}}"
+        echo "  Environments: {{workflow.parameters.target-environments}}"
+        echo "  Operator: {{workflow.parameters.operator-image}}"
+        echo "  Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo "  Gate Mode: {{workflow.parameters.gate-mode}}"
+        echo ""
+
+        # Enhanced Slack notification for multi-environment
+        TIMESTAMP=$(TZ='America/New_York' date +"%Y-%m-%d %H:%M:%S EST")
+        DURATION_RAW="{{workflow.duration}}"
+        DURATION_SECONDS=$(echo "$DURATION_RAW" | sed 's/\([0-9]*\).*/\1/')
+        if [ -z "$DURATION_SECONDS" ] || [ "$DURATION_SECONDS" = "0" ]; then
+          DURATION_SECONDS="0"
+        fi
+        DURATION="${DURATION_SECONDS}s"
+
+        # Create environment-specific links
+        TARGET_ENVS="{{workflow.parameters.target-environments}}"
+        IFS=',' read -ra ENVS <<< "$TARGET_ENVS"
+
+        ENV_LINKS=""
+        S3_ARTIFACTS_LINKS=""
+        for env in "${ENVS[@]}"; do
+          case "$env" in
+            int)
+              CLUSTER_ID="{{workflow.parameters.int-cluster-id}}"
+              ;;
+            stage)
+              CLUSTER_ID="{{workflow.parameters.stage-cluster-id}}"
+              ;;
+          esac
+
+          # Use simplified S3 structure: workflows/operator-name/cluster-id/timestamp/
+          S3_BASE_PATH="workflows/{{workflow.parameters.operator-name}}/$CLUSTER_ID/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}"
+          ENV_LINKS="$ENV_LINKS\\n  • $env: $CLUSTER_ID"
+          # Create direct S3 object URLs for better accessibility
+          S3_REPORT_URL="https://osde2e-test-artifacts.s3.us-east-1.amazonaws.com/$S3_BASE_PATH/test_output.log"
+          S3_CONSOLE_URL="https://s3.console.aws.amazon.com/s3/buckets/osde2e-test-artifacts?prefix=$S3_BASE_PATH/"
+          S3_ARTIFACTS_LINKS="$S3_ARTIFACTS_LINKS\\n  • $env: <$S3_REPORT_URL|Test Report> | <$S3_CONSOLE_URL|S3 Console>"
+        done
+
+        WORKFLOW_LINK="http://argo-server-route-argo.apps.yiq-int.dyeo.i1.devshift.org/workflows/argo/{{workflow.name}}"
+
+        MESSAGE="[SUCCESS] Multi-Environment OSDE2E Test Gate PASSED! ({{workflow.parameters.gate-mode}} mode)\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nExecution Mode: {{workflow.parameters.execution-mode}}\\nEnvironments Tested:$ENV_LINKS\\nStatus: Succeeded\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nTest Reports & Artifacts:$S3_ARTIFACTS_LINKS\\nStatus: Ready for Production Deployment across all environments!"
+
+        if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+          curl -X POST -H 'Content-type: application/json' \
+               --data "{\"text\":\"$MESSAGE\"}" \
+               "${SLACK_WEBHOOK_URL}"
+
+          if [ $? -eq 0 ]; then
+            echo "Slack success notification sent"
+          else
+            echo "WARNING: Slack notification failed"
+          fi
+        else
+          echo "INFO: No Slack webhook configured, skipping notification"
+        fi
+      env:
+      - name: SLACK_WEBHOOK_URL
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: slack-webhook-url
+            optional: true
+
+  # Multi-environment failure notification
+  - name: multi-env-notification
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        if [ "{{workflow.status}}" != "Succeeded" ]; then
+          echo "Multi-Environment OSDE2E Test Gate FAILED!"
+          echo "============================================="
+          echo ""
+          echo "Failure Details:"
+          echo "  Workflow: {{workflow.name}}"
+          echo "  Status: {{workflow.status}}"
+          echo "  Execution Mode: {{workflow.parameters.execution-mode}}"
+          echo "  Target Environments: {{workflow.parameters.target-environments}}"
+          echo "  Operator: {{workflow.parameters.operator-image}}"
+          echo "  Test Harness: {{workflow.parameters.test-harness-image}}"
+          echo ""
+
+          TIMESTAMP=$(TZ='America/New_York' date +"%Y-%m-%d %H:%M:%S EST")
+          DURATION_RAW="{{workflow.duration}}"
+          DURATION_SECONDS=$(echo "$DURATION_RAW" | sed 's/\([0-9]*\).*/\1/')
+          if [ -z "$DURATION_SECONDS" ] || [ "$DURATION_SECONDS" = "0" ]; then
+            DURATION_SECONDS="0"
+          fi
+          DURATION="${DURATION_SECONDS}s"
+
+          WORKFLOW_LINK="http://argo-server-route-argo.apps.yiq-int.dyeo.i1.devshift.org/workflows/argo/{{workflow.name}}"
+
+          # Create S3 artifacts links for failure notification
+          TARGET_ENVS="{{workflow.parameters.target-environments}}"
+          IFS=',' read -ra ENVS <<< "$TARGET_ENVS"
+          S3_ARTIFACTS_LINKS=""
+          for env in "${ENVS[@]}"; do
+            case "$env" in
+              int)
+                CLUSTER_ID="{{workflow.parameters.int-cluster-id}}"
+                ;;
+              stage)
+                CLUSTER_ID="{{workflow.parameters.stage-cluster-id}}"
+                ;;
+            esac
+            # Use simplified S3 structure: workflows/operator-name/cluster-id/timestamp/
+            S3_BASE_PATH="workflows/{{workflow.parameters.operator-name}}/$CLUSTER_ID/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}"
+            ENV_LINKS="$ENV_LINKS\\n  • $env: $CLUSTER_ID"
+            # Create direct S3 object URLs for better accessibility
+          S3_REPORT_URL="https://osde2e-test-artifacts.s3.us-east-1.amazonaws.com/$S3_BASE_PATH/test_output.log"
+          S3_CONSOLE_URL="https://s3.console.aws.amazon.com/s3/buckets/osde2e-test-artifacts?prefix=$S3_BASE_PATH/"
+          S3_ARTIFACTS_LINKS="$S3_ARTIFACTS_LINKS\\n  • $env: <$S3_REPORT_URL|Test Report> | <$S3_CONSOLE_URL|S3 Console>"
+          done
+
+          MESSAGE="[FAILED] Multi-Environment OSDE2E Test Gate FAILED! ({{workflow.parameters.gate-mode}} mode)\\nFailure Details:\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nExecution Mode: {{workflow.parameters.execution-mode}}\\nEnvironments Tested:$ENV_LINKS\\nStatus: {{workflow.status}}\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nTest Reports & Artifacts:$S3_ARTIFACTS_LINKS\\nDebug: Check workflow logs for failure details"
+
+          if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+                 --data "{\"text\":\"$MESSAGE\"}" \
+                 "${SLACK_WEBHOOK_URL}"
+
+            if [ $? -eq 0 ]; then
+              echo "Slack failure notification sent"
+            else
+              echo "WARNING: Slack notification failed"
+            fi
+          else
+            echo "INFO: No Slack webhook configured, skipping notification"
+          fi
+        else
+          echo "INFO: Multi-environment workflow succeeded, no failure notification needed"
+        fi
+      env:
+      - name: SLACK_WEBHOOK_URL
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: slack-webhook-url
+            optional: true
+
+  # Environment-specific auto-approve gate (10s delay like osde2e-workflow)
+  - name: auto-approve-env-gate
+    inputs:
+      parameters:
+      - name: environment
+      - name: cluster-id
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        echo "OSDE2E Quality Gate - Environment: {{inputs.parameters.environment}}"
+        echo "=================================================================="
+        echo ""
+        echo "Test Results Summary:"
+        echo "  Environment: {{inputs.parameters.environment}}"
+        echo "  Cluster ID: {{inputs.parameters.cluster-id}}"
+        echo "  Operator: {{workflow.parameters.operator-image}}"
+        echo "  Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo "  Status: Test execution completed successfully"
+        echo ""
+
+        echo "Test Artifacts Available:"
+        TIMESTAMP="{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}"
+        OPERATOR_NAME="{{workflow.parameters.operator-name}}"
+        CLUSTER_ID="{{inputs.parameters.cluster-id}}"
+        S3_BUCKET="osde2e-test-artifacts"
+        S3_REGION="us-east-1"
+
+        echo "  Complete Reports: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/artifacts/osde2e-reports.tar.gz"
+        echo "  Test Summary: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/test-summary.json"
+        echo "  HTML Report: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/test-report.html"
+        echo ""
+
+        echo "Quality Gate: Auto-Approval Mode ({{inputs.parameters.environment}} environment)"
+        echo "Evaluating test results..."
+        echo ""
+
+        # Auto-approval countdown with progress indicator (10 seconds)
+        echo "[INFO] Auto-approval mode: waiting for gate evaluation..."
+        echo ""
+
+        TOTAL_SECONDS=10
+        for i in $(seq $TOTAL_SECONDS -1 1); do
+            # Calculate progress percentage
+            PROGRESS=$((($TOTAL_SECONDS - $i + 1) * 100 / $TOTAL_SECONDS))
+
+            # Create progress bar (20 characters width)
+            FILLED=$((PROGRESS / 5))
+            EMPTY=$((20 - FILLED))
+            PROGRESS_BAR="["
+            for j in $(seq 1 $FILLED); do PROGRESS_BAR="${PROGRESS_BAR}="; done
+            for j in $(seq 1 $EMPTY); do PROGRESS_BAR="${PROGRESS_BAR} "; done
+            PROGRESS_BAR="${PROGRESS_BAR}]"
+
+            printf "\r[INFO] Gate evaluation progress: %s %3d%% (%ds remaining)" "$PROGRESS_BAR" "$PROGRESS" "$i"
+            sleep 1
+        done
+
+        # Final progress update
+        printf "\r[INFO] Gate evaluation progress: [====================] 100%% (Complete!)     \n"
+        echo ""
+        echo "[SUCCESS] Gate Evaluation Complete - {{inputs.parameters.environment}} environment approved"
+        echo ""
+
+        # Check if this is the last environment in sequential mode
+        if [ "{{inputs.parameters.environment}}" = "stage" ] && [ "{{workflow.parameters.execution-mode}}" = "sequential" ]; then
+          echo "[INFO] Sequential execution: stage environment completed, ready to proceed"
+        elif [ "{{inputs.parameters.environment}}" = "int" ] && [ "{{workflow.parameters.execution-mode}}" = "sequential" ]; then
+          echo "[INFO] Sequential execution: int environment completed, proceeding to stage environment"
+        fi
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi

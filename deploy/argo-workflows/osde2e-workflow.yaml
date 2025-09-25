@@ -30,7 +30,7 @@ spec:
     - name: kubectl-image
       value: "quay.io/openshift/origin-cli:latest"
     - name: ocm-cluster-id
-      value: "2l5r5un9mlja28nr7uurptg33qdtnfbd"
+      value: "2lg4s77vrouphf9c81v3vshildt8o11j"
     - name: test-timeout
       value: "3600"
     - name: cleanup-on-failure
@@ -725,7 +725,8 @@ spec:
         OPERATOR_NAME="{{workflow.parameters.operator-name}}"
         CLUSTER_ID="{{workflow.parameters.ocm-cluster-id}}"
 
-        # Use the new deterministic path for main execution log
+        # Use the accessible S3 path format that matches the working URL structure
+        # Based on successful access pattern: /artifacts/main_execution.log
         OSDE2E_LOG_LINK="https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/artifacts/main_execution.log"
 
         MESSAGE="[SUCCESS] OSDE2E Test Gate PASSED! ({{workflow.parameters.gate-mode}} mode)\\n\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nCluster: <$OCM_CLUSTER_LINK|{{workflow.parameters.ocm-cluster-id}}>\\nEnvironment: INT\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nTest Report: <$OSDE2E_LOG_LINK|View OSDE2E Test Log>\\nStatus: Ready for Production"
@@ -840,7 +841,8 @@ spec:
           OPERATOR_NAME="{{workflow.parameters.operator-name}}"
           CLUSTER_ID="{{workflow.parameters.ocm-cluster-id}}"
 
-          # Use the new deterministic path for main execution log
+          # Use the accessible S3 path format that matches the working URL structure
+          # Based on successful access pattern: /artifacts/main_execution.log
           OSDE2E_LOG_LINK="https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/artifacts/main_execution.log"
 
           MESSAGE="[FAILED] OSDE2E Test Gate FAILED! ({{workflow.parameters.gate-mode}} mode)\\n\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nCluster: <$OCM_CLUSTER_LINK|{{workflow.parameters.ocm-cluster-id}}>\\nEnvironment: INT\\nStatus: {{workflow.status}}\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nTest Report: <$OSDE2E_LOG_LINK|View OSDE2E Test Log>\\nDebug: Check test logs for failure details"

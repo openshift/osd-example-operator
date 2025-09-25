@@ -12,7 +12,7 @@ OPERATOR_IMAGE="quay.io/rh_ee_yiqzhang/osd-example-operator:latest"
 TEST_HARNESS_IMAGE="quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857"
 OPERATOR_NAME="osd-example-operator"
 OPERATOR_NAMESPACE="argo"
-CLUSTER_ID="2l5r5un9mlja28nr7uurptg33qdtnfbd"
+CLUSTER_ID="2lg4s77vrouphf9c81v3vshildt8o11j"
 CLEANUP_ON_FAILURE="true"
 
 # Gate mode configuration
@@ -70,8 +70,8 @@ GATE COMPARISON:
     ┌─────────────────┬──────────────────┬─────────────────────────────┐
     │ Mode            │ Command          │ Behavior                    │
     ├─────────────────┼──────────────────┼─────────────────────────────┤
-    │ Auto-Approve    │ ./run.sh         │ 10s delay → auto-proceed    │
-    │ Manual Approval │ --manual-approval│ Pause → wait for argo resume│
+    │ Auto-Approve    │ ./run.sh         │ 10s delay -> auto-proceed    │
+    │ Manual Approval │ --manual-approval│ Pause -> wait for argo resume│
     └─────────────────┴──────────────────┴─────────────────────────────┘
 
 EOF
@@ -157,7 +157,7 @@ submit_workflow() {
     fi
 
     log_success "Workflow submitted: $WORKFLOW_NAME"
-    echo "  UI: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org/workflows/argo/$WORKFLOW_NAME"
+    echo "  UI: http://argo-server-route-argo.apps.yiq-int.dyeo.i1.devshift.org/workflows/argo/$WORKFLOW_NAME"
     echo ""
 }
 
@@ -280,7 +280,7 @@ handle_gate_approval() {
         echo "  APPROVE: argo resume $WORKFLOW_NAME -n $NAMESPACE"
         echo "  REJECT:  argo stop $WORKFLOW_NAME -n $NAMESPACE"
         echo ""
-        echo "  View in UI: http://argo-server-route-argo.apps.yiq-int.2s7u.i1.devshift.org/workflows/argo/$WORKFLOW_NAME"
+        echo "  View in UI: http://argo-server-route-argo.apps.yiq-int.dyeo.i1.devshift.org/workflows/argo/$WORKFLOW_NAME"
         echo ""
                 echo "Waiting for your decision..."
 
