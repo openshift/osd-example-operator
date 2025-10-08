@@ -1,6 +1,6 @@
 include boilerplate/generated-includes.mk
 
-export KONFLUX_BUILDS=true
+export SKIP_SAAS_FILE_CHECKS=true
 
 .PHONY: boilerplate-update
 boilerplate-update:
