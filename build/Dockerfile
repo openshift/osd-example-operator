@@ -1,25 +1,18 @@
-FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v6.0.1 AS builder
-
-WORKDIR /workspace
-# Copy the Go Modules manifests
-COPY go.mod go.mod
-COPY go.sum go.sum
-# cache deps before building and copying source so that we don't need to re-download as much
-# and so that source changes don't invalidate our downloaded layer
+FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.1.0 AS builder
+COPY go.mod /
+COPY go.sum /
 RUN go mod download
+COPY . /osd-example-operator
+WORKDIR /osd-example-operator
+RUN make go-build
 
-# Copy the go source
-COPY main.go main.go
-COPY controllers/ controllers/
-
-# Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -mod=mod -a -o manager main.go
-
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.10-1154
-WORKDIR /
-COPY --from=builder /workspace/manager .
-USER nonroot:nonroot
-
-ENTRYPOINT ["/manager"]
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6-1755695350
+ENV OPERATOR=/usr/local/bin/osd-example-operator \
+    USER_UID=1001 \
+    USER_NAME=osd-example-operator
+# install operator binary
+COPY --from=builder /osd-example-operator/build/_output/bin/osd-example-operator ${OPERATOR}
+COPY build/bin /usr/local/bin
+RUN  /usr/local/bin/user_setup
+ENTRYPOINT ["/usr/local/bin/entrypoint"]
+USER ${USER_UID}

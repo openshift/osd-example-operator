@@ -1,5 +1,4 @@
-# DO NOT EDIT!!!!
-apiVersion: template.openshift.io/v1
+apiVersion: v1
 kind: Template
 parameters:
 - name: CHANNEL
@@ -29,8 +28,8 @@ objects:
   spec:
     clusterDeploymentSelector:
       matchLabels:
-        api.openshift.com/name: osd-example-1
-    resourceApplyMode: Upsert
+        api.openshift.com/managed: 'true'
+    resourceApplyMode: Sync
     resources:
     - apiVersion: v1
       kind: Namespace
@@ -47,7 +46,7 @@ objects:
           olm.operatorframework.io/exclude-global-namespace-resolution: 'true'
       spec:
         targetNamespaces:
-        - e2e-testing
+        - openshift-machine-api
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
       metadata:
