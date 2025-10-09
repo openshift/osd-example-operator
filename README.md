@@ -52,7 +52,9 @@ OCM_ENVIRONMENT=stage KUBECONFIG=/<path-to>/kubeconfig  ./<path-to>/bin/ginkgo  
   --configs rosa,stage,sts,test-harness \
   --skip-must-gather \
   --skip-destroy-cluster \
-  --skip-health-check
+
+  --skip-health-check 
 
 
 # debug: trigger pipeline
+
