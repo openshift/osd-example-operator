@@ -54,6 +54,7 @@ objects:
                 - --only-health-check-nodes
                 - --skip-destroy-cluster
                 - --skip-must-gather
+                - --enable-llm-analysis
                 - --configs
                 - ${OSDE2E_CONFIGS}
               securityContext:
@@ -85,4 +86,6 @@ objects:
                 - name: USE_EXISTING_CLUSTER
                   value: ${USE_EXISTING_CLUSTER}
                 - name: CAD_PAGERDUTY_ROUTING_KEY
-                  value: ${CAD_PAGERDUTY_ROUTING_KEY}                 
+                  value: ${CAD_PAGERDUTY_ROUTING_KEY}
+                - name: GEMINI_API_KEY
+                  value: ${GEMINI_API_KEY}
