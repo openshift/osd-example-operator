@@ -26,3 +26,10 @@ func TestOsdExampleOperator(t *testing.T) {
 	}
 	RunSpecs(t, "Osd Example Operator", suiteConfig, reporterConfig)
 }
+
+// Failing test case added on purpose
+var _ = Describe("Intentional Failure Test", func() {
+	It("should fail on purpose", func() {
+		Expect(true).To(BeFalse(), "This test is designed to fail intentionally")
+	})
+})
