@@ -1,9 +1,10 @@
 reviewers:
 - ritmun
 - yiqinzhang
-- jbpratt
 - varunraokadaparthi
+- christophermancini
 approvers:
 - mmazur
 - ritmun
-- jbpratt
+- yiqinzhang
+- varunraokadaparthi
