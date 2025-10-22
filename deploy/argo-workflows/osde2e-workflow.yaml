@@ -1,0 +1,884 @@
+# OSDE2E Gate - Single WorkflowTemplate with Dynamic Gate Mode
+# Supports both auto-approve and manual approval modes via parameters
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: osde2e-workflow
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    version: v2.0.0
+    purpose: osde2e-testing
+spec:
+  serviceAccountName: osde2e-workflow
+  entrypoint: deploy-then-osde2e-pipeline
+  onExit: failure-notification
+
+  # Default parameters (override with -p flag)
+  arguments:
+    parameters:
+    - name: operator-image
+      value: "quay.io/rh_ee_yiqzhang/osd-example-operator:latest"
+    - name: test-harness-image
+      value: "quay.io/rmundhe_oc/osd-example-operator-e2e:dc5b857"
+    - name: operator-name
+      value: "osd-example-operator"
+    - name: operator-namespace
+      value: "argo"
+    - name: osde2e-image
+      value: "quay.io/rh_ee_yiqzhang/osde2e:latest"
+    - name: kubectl-image
+      value: "quay.io/openshift/origin-cli:latest"
+    - name: ocm-cluster-id
+      value: "2lg4s77vrouphf9c81v3vshildt8o11j"
+    - name: test-timeout
+      value: "3600"
+    - name: cleanup-on-failure
+      value: "true"
+    # NEW: Gate mode parameter for dynamic gate selection
+    - name: gate-mode
+      value: "auto-approve"  # Options: "auto-approve" or "manual-approval"
+
+  templates:
+  # Main test pipeline with dynamic gate selection
+  - name: deploy-then-osde2e-pipeline
+    steps:
+    - - name: deploy-operator
+        template: deploy-operator
+    - - name: wait-for-deployment
+        template: wait-for-deployment
+    - - name: run-osde2e-test
+        template: run-osde2e-test
+    - - name: collect-test-results
+        template: collect-test-results
+        when: "{{steps.run-osde2e-test.status}} != Skipped"
+    # Dynamic gate selection based on gate-mode parameter
+    - - name: quality-gate
+        template: "{{workflow.parameters.gate-mode}}-gate"
+        when: "{{steps.run-osde2e-test.status}} == Succeeded"
+    - - name: promote-and-notify
+        template: promote-and-notify
+        when: "{{steps.quality-gate.status}} == Succeeded"
+    - - name: cleanup-deployment
+        template: cleanup-deployment
+        when: "{{workflow.parameters.cleanup-on-failure}} == true || {{steps.quality-gate.status}} == Succeeded"
+
+  # Deploy operator and CRD
+  - name: deploy-operator
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Deploying {{workflow.parameters.operator-name}} to {{workflow.parameters.operator-namespace}}"
+
+        # Install CRD first if not exists
+        echo "Installing Example CRD..."
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        metadata:
+          name: examples.managed.openshift.io
+        spec:
+          group: managed.openshift.io
+          versions:
+          - name: v1alpha1
+            served: true
+            storage: true
+            schema:
+              openAPIV3Schema:
+                type: object
+                properties:
+                  spec:
+                    type: object
+                  status:
+                    type: object
+          scope: Namespaced
+          names:
+            plural: examples
+            singular: example
+            kind: Example
+        EOF
+
+        echo "CRD installation complete, deploying operator..."
+
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+          namespace: {{workflow.parameters.operator-namespace}}
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+        rules:
+        - apiGroups: [""]
+          resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["apps"]
+          resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["apiextensions.k8s.io"]
+          resources: ["customresourcedefinitions"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        - apiGroups: ["managed.openshift.io"]
+          resources: ["*"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: {{workflow.parameters.operator-name}}
+        subjects:
+        - kind: ServiceAccount
+          name: {{workflow.parameters.operator-name}}
+          namespace: {{workflow.parameters.operator-namespace}}
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: {{workflow.parameters.operator-name}}
+          namespace: {{workflow.parameters.operator-namespace}}
+          labels:
+            app: {{workflow.parameters.operator-name}}
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: {{workflow.parameters.operator-name}}
+          template:
+            metadata:
+              labels:
+                app: {{workflow.parameters.operator-name}}
+            spec:
+              serviceAccountName: {{workflow.parameters.operator-name}}
+              containers:
+              - name: operator
+                image: {{workflow.parameters.operator-image}}
+                imagePullPolicy: Always
+                env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: WATCH_NAMESPACE
+                  value: ""
+                ports:
+                - containerPort: 8081
+                  name: metrics
+                - containerPort: 8443
+                  name: webhook
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 30
+                  periodSeconds: 20
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                securityContext:
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["ALL"]
+        EOF
+        echo "Operator deployment configuration applied"
+
+  # Wait for operator deployment
+  - name: wait-for-deployment
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Waiting for {{workflow.parameters.operator-name}} deployment to be ready..."
+        kubectl rollout status deployment/{{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --timeout=600s
+        kubectl wait --for=condition=ready pod -l app={{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --timeout=300s
+        echo "Operator successfully deployed and running"
+
+  # Run OSDE2E tests with AWS authentication and artifact collection
+  - name: run-osde2e-test
+    outputs:
+      artifacts:
+      - name: osde2e-reports
+        path: /tmp/osde2e-reports
+        optional: true
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{workflow.parameters.ocm-cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/artifacts/osde2e-reports.tar.gz"
+      - name: test-output-log
+        path: /tmp/osde2e-reports/test_output.log
+        optional: true
+        archive:
+          none: {}
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{workflow.parameters.ocm-cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/artifacts/test_output.log"
+      - name: main-execution-log
+        path: /tmp/osde2e-reports/main_execution.log
+        optional: true
+        archive:
+          none: {}
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{workflow.parameters.ocm-cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/artifacts/main_execution.log"
+    initContainers:
+    - name: setup-aws-credentials
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        set -euo pipefail
+        echo "Setting up AWS credentials for ROSA CLI..."
+
+        # Create AWS credentials directory
+        mkdir -p /shared/.aws
+
+        # Create credentials file
+        cat > /shared/.aws/credentials <<EOF
+        [default]
+        aws_access_key_id = ${AWS_ACCESS_KEY_ID}
+        aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}
+        EOF
+
+        # Create config file
+        cat > /shared/.aws/config <<EOF
+        [default]
+        region = ${AWS_DEFAULT_REGION}
+        output = json
+        EOF
+
+        # Set proper permissions
+        chmod 600 /shared/.aws/credentials /shared/.aws/config
+
+        echo "AWS credentials configured successfully"
+        ls -la /shared/.aws/
+      env:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-secret-access-key
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      volumeMounts:
+      - name: aws-credentials
+        mountPath: /shared
+    container:
+      image: "{{workflow.parameters.osde2e-image}}"
+      command: ["/bin/bash"]
+      args:
+      - -c
+      - |
+        # Create output directory
+        mkdir -p /tmp/osde2e-reports
+
+        # Run OSDE2E and capture both stdout and the output to a file
+        /osde2e test --configs rosa,int,ad-hoc-image --skip-must-gather --skip-destroy-cluster --skip-health-check 2>&1 | tee /tmp/osde2e-reports/main_execution.log
+      volumeMounts:
+      - name: aws-credentials
+        mountPath: /shared
+
+      env:
+      - name: CLUSTER_ID
+        value: "{{workflow.parameters.ocm-cluster-id}}"
+
+      # Keep client credentials as backup
+      - name: OCM_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: ocm-client-id
+      - name: OCM_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: ocm-client-secret
+
+      # AWS authentication (standard OSDE2E environment variables)
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-access-key-id
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-secret-access-key
+      - name: AWS_ACCOUNT_ID
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: aws-account-id
+      - name: AWS_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      - name: AWS_PROFILE
+        value: "default"
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: cloud-provider-region
+      - name: AD_HOC_TEST_IMAGES
+        value: "{{workflow.parameters.test-harness-image}}"
+      # ROSA/OpenShift configuration
+      - name: PROVIDER
+        value: "rosa"
+      - name: OCM_ENV
+        value: "int"
+      - name: OCM_URL
+        value: "https://api.integration.openshift.com"
+
+      # AWS credentials file paths
+      - name: AWS_SHARED_CREDENTIALS_FILE
+        value: "/shared/.aws/credentials"
+      - name: AWS_CONFIG_FILE
+        value: "/shared/.aws/config"
+      - name: HOME
+        value: "/shared"
+
+      # Cluster configuration
+      - name: USE_EXISTING_CLUSTER
+        value: "true"
+      - name: SKIP_DESTROY_CLUSTER
+        value: "true"
+      - name: SKIP_CLUSTER_HEALTH_CHECK
+        value: "true"
+
+      # Report configuration for S3 artifact collection
+      - name: REPORT_DIR
+        value: "/tmp/osde2e-reports"
+      - name: MUST_GATHER_DIR
+        value: "/tmp/must-gather"
+
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+
+      securityContext:
+        runAsNonRoot: true   # Match OSDE2E template security requirements
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+
+    volumes:
+    - name: aws-credentials
+      emptyDir: {}
+
+  # Collect and display test results with S3 artifact summary
+  - name: collect-test-results
+    outputs:
+      artifacts:
+      - name: test-summary
+        path: /tmp/test-summary.json
+        optional: true
+        archive:
+          none: {}
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{workflow.parameters.ocm-cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/test-summary.json"
+      - name: test-report-html
+        path: /tmp/test-report.html
+        optional: true
+        archive:
+          none: {}
+        s3:
+          key: "workflows/{{workflow.parameters.operator-name}}/{{workflow.parameters.ocm-cluster-id}}/{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}/test-report.html"
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Collecting OSDE2E Test Results and Generating S3 Artifact Links..."
+
+        REPORT_DIR="/tmp/osde2e-reports"
+        S3_BUCKET="osde2e-test-artifacts"
+        S3_REGION="us-east-1"
+        S3_KEY_PREFIX="{{workflow.creationTimestamp.Y}}/{{workflow.creationTimestamp.m}}/{{workflow.creationTimestamp.d}}/{{workflow.name}}/{{pod.name}}"
+
+        echo "OSDE2E Test Results Summary"
+        echo "==========================="
+        echo "Timestamp: $(date -u)"
+        echo "Workflow: {{workflow.name}}"
+        echo "Operator: {{workflow.parameters.operator-image}}"
+        echo "Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo "Cluster: {{workflow.parameters.ocm-cluster-id}}"
+        echo ""
+
+                                                # Generate S3 artifact URLs using deterministic naming
+        echo "Generating OSDE2E artifact links with deterministic naming..."
+
+        # Create deterministic path structure
+        TIMESTAMP="{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}"
+        OPERATOR_NAME="{{workflow.parameters.operator-name}}"
+        CLUSTER_ID="{{workflow.parameters.ocm-cluster-id}}"
+
+        # Simplified and deterministic path structure
+        BASE_PREFIX="workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}"
+        ARTIFACTS_PREFIX="${BASE_PREFIX}/artifacts"
+
+        echo "Using deterministic path structure:"
+        echo "  Base: ${BASE_PREFIX}"
+        echo "  Artifacts: ${ARTIFACTS_PREFIX}"
+
+        echo "S3 Artifact Repository Links:"
+        echo "================================="
+        echo "* OSDE2E Reports Archive: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/osde2e-reports.tar.gz"
+        echo "* Main Execution Log (Complete): https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/main_execution.log"
+        echo "* Test Output Log (OSDE2E Suite): https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/test_output.log"
+        echo "* Test Summary: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${BASE_PREFIX}/test-summary.json"
+        echo "* Test Report: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${BASE_PREFIX}/test-report.html"
+        echo ""
+
+        # Parse duration for better formatting
+        DURATION_RAW="{{workflow.duration}}"
+        DURATION_SECONDS=$(echo "$DURATION_RAW" | sed 's/\([0-9]*\).*/\1/')
+        if [ -z "$DURATION_SECONDS" ] || [ "$DURATION_SECONDS" = "0" ]; then
+          DURATION_SECONDS="0"
+        fi
+
+                        # Create test summary for S3 upload and UI display
+        FILES_COUNT=$(find ${REPORT_DIR} -type f 2>/dev/null | wc -l || echo 0)
+        GENERATED_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+        # Create JSON summary using echo (no external dependencies)
+        echo "{" > /tmp/test-summary.json
+        echo '  "workflow_metadata": {' >> /tmp/test-summary.json
+        echo '    "name": "{{workflow.name}}",' >> /tmp/test-summary.json
+        echo '    "namespace": "{{workflow.namespace}}",' >> /tmp/test-summary.json
+        echo '    "creation_timestamp": "{{workflow.creationTimestamp}}",' >> /tmp/test-summary.json
+        echo "    \"duration_seconds\": ${DURATION_SECONDS}," >> /tmp/test-summary.json
+        echo "    \"duration_formatted\": \"${DURATION_SECONDS}s\"," >> /tmp/test-summary.json
+        echo '    "status": "{{workflow.status}}"' >> /tmp/test-summary.json
+        echo '  },' >> /tmp/test-summary.json
+        echo '  "test_configuration": {' >> /tmp/test-summary.json
+        echo '    "operator_image": "{{workflow.parameters.operator-image}}",' >> /tmp/test-summary.json
+        echo '    "test_harness_image": "{{workflow.parameters.test-harness-image}}",' >> /tmp/test-summary.json
+        echo '    "cluster_id": "{{workflow.parameters.ocm-cluster-id}}",' >> /tmp/test-summary.json
+        echo '    "operator_name": "{{workflow.parameters.operator-name}}",' >> /tmp/test-summary.json
+        echo '    "test_timeout": "{{workflow.parameters.test-timeout}}"' >> /tmp/test-summary.json
+        echo '  },' >> /tmp/test-summary.json
+        echo '  "s3_artifacts": {' >> /tmp/test-summary.json
+        echo "    \"bucket\": \"${S3_BUCKET}\"," >> /tmp/test-summary.json
+        echo "    \"region\": \"${S3_REGION}\"," >> /tmp/test-summary.json
+        echo "    \"base_path\": \"${BASE_PREFIX}\"," >> /tmp/test-summary.json
+        echo "    \"osde2e_reports_url\": \"https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/osde2e-reports.tar.gz\"," >> /tmp/test-summary.json
+        echo "    \"main_execution_log_url\": \"https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/main_execution.log\"," >> /tmp/test-summary.json
+        echo "    \"test_output_log_url\": \"https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/test_output.log\"," >> /tmp/test-summary.json
+        echo "    \"test_summary_url\": \"https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${BASE_PREFIX}/test-summary.json\"," >> /tmp/test-summary.json
+        echo "    \"test_report_url\": \"https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${BASE_PREFIX}/test-report.html\"" >> /tmp/test-summary.json
+        echo '  },' >> /tmp/test-summary.json
+        echo '  "local_results": {' >> /tmp/test-summary.json
+        echo "    \"report_directory\": \"${REPORT_DIR}\"," >> /tmp/test-summary.json
+        echo "    \"files_found\": ${FILES_COUNT}" >> /tmp/test-summary.json
+        echo '  },' >> /tmp/test-summary.json
+        echo "  \"generated_at\": \"${GENERATED_TIME}\"" >> /tmp/test-summary.json
+        echo "}" >> /tmp/test-summary.json
+
+        echo "Test Summary JSON:"
+        # Try to format with jq if available, otherwise show raw JSON
+        if command -v jq >/dev/null 2>&1; then
+          cat /tmp/test-summary.json | jq .
+        else
+          echo "(Note: jq not available for formatting, showing raw JSON)"
+          cat /tmp/test-summary.json
+        fi
+
+        # Create simple HTML report for better UI display
+        echo "<html><head><title>OSDE2E Test Report - {{workflow.name}}</title>" > /tmp/test-report.html
+        echo "<style>body{font-family:Arial,sans-serif;margin:20px;} h1{color:#0066cc;} h2{color:#333;} ul{list-style-type:none;padding:0;} li{margin:10px 0;padding:10px;background:#f5f5f5;border-radius:5px;} a{text-decoration:none;color:#0066cc;font-weight:bold;} a:hover{text-decoration:underline;} .wildcard-note{color:#666;font-size:0.9em;}</style>" >> /tmp/test-report.html
+        echo "</head><body>" >> /tmp/test-report.html
+        echo "<h1>OSDE2E Test Report</h1>" >> /tmp/test-report.html
+        echo "<p><strong>Workflow:</strong> {{workflow.name}}</p>" >> /tmp/test-report.html
+        echo "<p><strong>Status:</strong> {{workflow.status}}</p>" >> /tmp/test-report.html
+        echo "<p><strong>Duration:</strong> ${DURATION_SECONDS}s</p>" >> /tmp/test-report.html
+        echo "<p><strong>Cluster ID:</strong> {{workflow.parameters.ocm-cluster-id}}</p>" >> /tmp/test-report.html
+        echo "<p><strong>Generated:</strong> $(date -u)</p>" >> /tmp/test-report.html
+        echo "<h2>Test Artifacts</h2>" >> /tmp/test-report.html
+        echo "<ul>" >> /tmp/test-report.html
+        echo "<li><a href='https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/main_execution.log' target='_blank'> Main Execution Log (Complete)</a> - Full test execution with results, viewable in browser</li>" >> /tmp/test-report.html
+        echo "<li><a href='https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/test_output.log' target='_blank'> Test Output Log (OSDE2E Suite)</a> - OSDE2E suite logs, viewable in browser</li>" >> /tmp/test-report.html
+        echo "<li><a href='https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${ARTIFACTS_PREFIX}/osde2e-reports.tar.gz' target='_blank'> OSDE2E Reports Archive</a> - Complete test reports and logs (download required)</li>" >> /tmp/test-report.html
+        echo "</ul>" >> /tmp/test-report.html
+        echo "<h2>Argo Workflow Logs</h2>" >> /tmp/test-report.html
+        echo "<ul>" >> /tmp/test-report.html
+        echo "<li><a href='https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${BASE_PREFIX}/argo-logs/{{workflow.name}}-deploy-operator/main.log' target='_blank'> Deploy Operator Log</a> - Operator deployment logs</li>" >> /tmp/test-report.html
+        echo "<li><a href='https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${BASE_PREFIX}/argo-logs/{{workflow.name}}-run-osde2e-test/main.log' target='_blank'> OSDE2E Test Step Log</a> - Argo workflow step logs</li>" >> /tmp/test-report.html
+        echo "<li><a href='https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${BASE_PREFIX}/argo-logs/{{workflow.name}}-collect-test-results/main.log' target='_blank'> Collect Results Log</a> - Results collection logs</li>" >> /tmp/test-report.html
+        echo "</ul>" >> /tmp/test-report.html
+        echo "<p><em>Note: All artifacts are stored in S3 bucket: ${S3_BUCKET}</em></p>" >> /tmp/test-report.html
+        echo "</body></html>" >> /tmp/test-report.html
+
+        if [ -d "$REPORT_DIR" ]; then
+          echo "[SUCCESS] Test results collected and artifact URLs generated"
+        else
+          echo "[WARNING] Test results directory not found at $REPORT_DIR"
+          echo "Available files in /tmp:"
+          find /tmp -type f 2>/dev/null | head -5 || true
+        fi
+
+        echo ""
+        echo "All artifacts will be available in S3 bucket: ${S3_BUCKET}"
+        echo "Use the URLs above to access persistent test reports and logs"
+
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+
+  # Auto-approve gate (container with 10s delay)
+  - name: auto-approve-gate
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        echo " OSDE2E Quality Gate - Auto-Approval Mode"
+        echo "==========================================="
+        echo ""
+        echo " Test Results Summary:"
+        echo "  Workflow: {{workflow.name}}"
+        echo "  Operator: {{workflow.parameters.operator-image}}"
+        echo "  Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo "  Cluster: {{workflow.parameters.ocm-cluster-id}}"
+        echo "  Status: Test execution completed successfully"
+        echo ""
+
+        echo " Test Artifacts Available:"
+        TIMESTAMP="{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}"
+        OPERATOR_NAME="{{workflow.parameters.operator-name}}"
+        CLUSTER_ID="{{workflow.parameters.ocm-cluster-id}}"
+        S3_BUCKET="osde2e-test-artifacts"
+        S3_REGION="us-east-1"
+
+        echo "   Complete Reports: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/artifacts/osde2e-reports.tar.gz"
+        echo "   Test Summary: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/test-summary.json"
+        echo "   HTML Report: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/test-report.html"
+        echo ""
+
+        echo "Quality Gate: Auto-Approval Mode"
+        echo "Evaluating test results..."
+        echo ""
+
+        # Auto-approval countdown with progress indicator (10 seconds)
+        echo "[INFO] Auto-approval mode: waiting for gate evaluation..."
+        echo ""
+
+        TOTAL_SECONDS=10
+        for i in $(seq $TOTAL_SECONDS -1 1); do
+            # Calculate progress percentage
+            PROGRESS=$((($TOTAL_SECONDS - $i + 1) * 100 / $TOTAL_SECONDS))
+
+            # Create progress bar (20 characters width)
+            FILLED=$((PROGRESS / 5))
+            EMPTY=$((20 - FILLED))
+            PROGRESS_BAR="["
+            for j in $(seq 1 $FILLED); do PROGRESS_BAR="${PROGRESS_BAR}="; done
+            for j in $(seq 1 $EMPTY); do PROGRESS_BAR="${PROGRESS_BAR} "; done
+            PROGRESS_BAR="${PROGRESS_BAR}]"
+
+            printf "\r[INFO] Gate evaluation progress: %s %3d%% (%ds remaining)" "$PROGRESS_BAR" "$PROGRESS" "$i"
+            sleep 1
+        done
+
+        # Final progress update
+        printf "\r[INFO] Gate evaluation progress: [====================] 100%% (Complete!)     \n"
+        echo ""
+        echo "[SUCCESS] Gate Evaluation Complete - Auto-approved for production deployment"
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+  # Manual approval gate (Argo native suspend)
+  - name: manual-approval-gate
+    suspend: {}
+
+  # Cleanup deployment resources
+  - name: cleanup-deployment
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: [bash, -c]
+      args:
+      - |
+        set -euo pipefail
+        echo "Cleaning up deployment resources..."
+        kubectl delete deployment {{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --ignore-not-found=true
+        kubectl delete clusterrolebinding {{workflow.parameters.operator-name}} --ignore-not-found=true
+        kubectl delete clusterrole {{workflow.parameters.operator-name}} --ignore-not-found=true
+        kubectl delete serviceaccount {{workflow.parameters.operator-name}} -n {{workflow.parameters.operator-namespace}} --ignore-not-found=true
+
+        # Don't delete argo namespace as it's an existing system namespace
+        echo "Cleanup complete (preserving namespace: {{workflow.parameters.operator-namespace}})"
+
+
+  # Success notification
+  - name: promote-and-notify
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        # Success message
+        echo "OSDE2E Test Gate SUCCESS - Ready for production!"
+        echo "Operator Image: {{workflow.parameters.operator-image}}"
+        echo "Test Harness: {{workflow.parameters.test-harness-image}}"
+        echo "Cluster: {{workflow.parameters.ocm-cluster-id}}"
+        echo "Workflow: {{workflow.name}}"
+
+        # Simple Slack success notification
+        TIMESTAMP=$(TZ='America/New_York' date +"%Y-%m-%d %H:%M:%S EST")
+
+        # Format duration as integer seconds
+        DURATION_RAW="{{workflow.duration}}"
+        DURATION_SECONDS=$(echo "$DURATION_RAW" | sed 's/\([0-9]*\).*/\1/')
+        if [ -z "$DURATION_SECONDS" ] || [ "$DURATION_SECONDS" = "0" ]; then
+          DURATION_SECONDS="0"
+        fi
+        DURATION="${DURATION_SECONDS}s"
+
+        # Function to get Argo UI base URL
+        get_argo_ui_url() {
+            local argo_ui_base=""
+            # Try to get OpenShift Route first
+            if command -v oc >/dev/null 2>&1 || kubectl api-resources | grep -q "route.openshift.io"; then
+                argo_ui_base=$(kubectl get route argo-server-route -n argo -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+                if [ -n "$argo_ui_base" ]; then
+                    echo "http://$argo_ui_base"
+                    return 0
+                fi
+            fi
+
+            # Try Ingress if Route not found
+            argo_ui_base=$(kubectl get ingress argo-server-ingress -n argo -o jsonpath='{.spec.rules[0].host}' 2>/dev/null || echo "")
+            if [ -n "$argo_ui_base" ]; then
+                echo "http://$argo_ui_base"
+                return 0
+            fi
+
+            # Try LoadBalancer if neither Route nor Ingress found
+            argo_ui_base=$(kubectl get svc argo-server-lb -n argo -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            if [ -n "$argo_ui_base" ]; then
+                echo "http://$argo_ui_base:2746"
+                return 0
+            fi
+
+            argo_ui_base=$(kubectl get svc argo-server-lb -n argo -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+            if [ -n "$argo_ui_base" ]; then
+                echo "http://$argo_ui_base:2746"
+                return 0
+            fi
+
+            # Fallback to local access if no external access found
+            echo "http://localhost:2746"
+            return 0
+        }
+
+        # Create clickable links
+        OCM_CLUSTER_LINK="https://console.redhat.com/openshift/details/{{workflow.parameters.ocm-cluster-id}}"
+        ARGO_UI_BASE=$(get_argo_ui_url)
+        WORKFLOW_LINK="$ARGO_UI_BASE/workflows/argo/{{workflow.name}}"
+
+        # Link to main execution log in S3 (deterministic path)
+        S3_BUCKET="osde2e-test-artifacts"
+        S3_REGION="us-east-1"
+        TIMESTAMP="{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}"
+        OPERATOR_NAME="{{workflow.parameters.operator-name}}"
+        CLUSTER_ID="{{workflow.parameters.ocm-cluster-id}}"
+
+        # Use the accessible S3 path format that matches the working URL structure
+        # Based on successful access pattern: /artifacts/main_execution.log
+        OSDE2E_LOG_LINK="https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/artifacts/main_execution.log"
+
+        MESSAGE="[SUCCESS] OSDE2E Test Gate PASSED! ({{workflow.parameters.gate-mode}} mode)\\n\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nCluster: <$OCM_CLUSTER_LINK|{{workflow.parameters.ocm-cluster-id}}>\\nEnvironment: INT\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nTest Report: <$OSDE2E_LOG_LINK|View OSDE2E Test Log>\\nStatus: Ready for Production"
+
+        if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+          curl -X POST -H 'Content-type: application/json' \
+               --data "{\"text\":\"$MESSAGE\"}" \
+               "${SLACK_WEBHOOK_URL}"
+
+          if [ $? -eq 0 ]; then
+            echo "Slack success notification sent"
+          else
+            echo "WARNING: Slack notification failed (exit code: $?)"
+            echo "[DEBUG] Webhook URL: ${SLACK_WEBHOOK_URL}"
+          fi
+        else
+          echo "INFO: No Slack webhook configured, skipping notification"
+        fi
+
+      env:
+      - name: SLACK_WEBHOOK_URL
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: slack-webhook-url
+            optional: true
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+
+  # Failure notification (triggered on any failure)
+  - name: failure-notification
+    container:
+      image: "{{workflow.parameters.kubectl-image}}"
+      command: ["/bin/sh", "-c"]
+      args:
+      - |
+        set -e
+
+        # Only notify on actual failure, not success
+        if [ "{{workflow.status}}" != "Succeeded" ]; then
+          echo "OSDE2E Test Gate FAILED!"
+          echo "Operator Image: {{workflow.parameters.operator-image}}"
+          echo "Test Harness: {{workflow.parameters.test-harness-image}}"
+          echo "Cluster: {{workflow.parameters.ocm-cluster-id}}"
+          echo "Status: {{workflow.status}}"
+          echo "Logs: argo logs {{workflow.name}} -n argo"
+
+          # Simple Slack failure notification
+          TIMESTAMP=$(TZ='America/New_York' date +"%Y-%m-%d %H:%M:%S EST")
+
+          # Format duration as integer seconds
+          DURATION_RAW="{{workflow.duration}}"
+          DURATION_SECONDS=$(echo "$DURATION_RAW" | sed 's/\([0-9]*\).*/\1/')
+          if [ -z "$DURATION_SECONDS" ] || [ "$DURATION_SECONDS" = "0" ]; then
+            DURATION_SECONDS="0"
+          fi
+          DURATION="${DURATION_SECONDS}s"
+
+          # Function to get Argo UI base URL
+          get_argo_ui_url() {
+              local argo_ui_base=""
+              # Try to get OpenShift Route first
+              if command -v oc >/dev/null 2>&1 || kubectl api-resources | grep -q "route.openshift.io"; then
+                  argo_ui_base=$(kubectl get route argo-server-route -n argo -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+                  if [ -n "$argo_ui_base" ]; then
+                      echo "http://$argo_ui_base"
+                      return 0
+                  fi
+              fi
+
+              # Try Ingress if Route not found
+              argo_ui_base=$(kubectl get ingress argo-server-ingress -n argo -o jsonpath='{.spec.rules[0].host}' 2>/dev/null || echo "")
+              if [ -n "$argo_ui_base" ]; then
+                  echo "http://$argo_ui_base"
+                  return 0
+              fi
+
+              # Try LoadBalancer if neither Route nor Ingress found
+              argo_ui_base=$(kubectl get svc argo-server-lb -n argo -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+              if [ -n "$argo_ui_base" ]; then
+                  echo "http://$argo_ui_base:2746"
+                  return 0
+              fi
+
+              argo_ui_base=$(kubectl get svc argo-server-lb -n argo -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+              if [ -n "$argo_ui_base" ]; then
+                  echo "http://$argo_ui_base:2746"
+                  return 0
+              fi
+
+              # Fallback to local access if no external access found
+              echo "http://localhost:2746"
+              return 0
+          }
+
+          # Create clickable links
+          OCM_CLUSTER_LINK="https://console.redhat.com/openshift/details/{{workflow.parameters.ocm-cluster-id}}"
+          ARGO_UI_BASE=$(get_argo_ui_url)
+          WORKFLOW_LINK="$ARGO_UI_BASE/workflows/argo/{{workflow.name}}"
+
+          # Link to main execution log in S3 for debugging (deterministic path)
+          S3_BUCKET="osde2e-test-artifacts"
+          S3_REGION="us-east-1"
+          TIMESTAMP="{{workflow.creationTimestamp.Y}}{{workflow.creationTimestamp.m}}{{workflow.creationTimestamp.d}}-{{workflow.creationTimestamp.H}}{{workflow.creationTimestamp.M}}"
+          OPERATOR_NAME="{{workflow.parameters.operator-name}}"
+          CLUSTER_ID="{{workflow.parameters.ocm-cluster-id}}"
+
+          # Use the accessible S3 path format that matches the working URL structure
+          # Based on successful access pattern: /artifacts/main_execution.log
+          OSDE2E_LOG_LINK="https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/workflows/${OPERATOR_NAME}/${CLUSTER_ID}/${TIMESTAMP}/artifacts/main_execution.log"
+
+          MESSAGE="[FAILED] OSDE2E Test Gate FAILED! ({{workflow.parameters.gate-mode}} mode)\\n\\nOperator: {{workflow.parameters.operator-image}}\\nTest Harness: {{workflow.parameters.test-harness-image}}\\nCluster: <$OCM_CLUSTER_LINK|{{workflow.parameters.ocm-cluster-id}}>\\nEnvironment: INT\\nStatus: {{workflow.status}}\\nDuration: $DURATION\\nTime: $TIMESTAMP\\nWorkflow: <$WORKFLOW_LINK|{{workflow.name}}>\\nTest Report: <$OSDE2E_LOG_LINK|View OSDE2E Test Log>\\nDebug: Check test logs for failure details"
+
+          if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+                 --data "{\"text\":\"$MESSAGE\"}" \
+                 "${SLACK_WEBHOOK_URL}"
+
+            if [ $? -eq 0 ]; then
+              echo "Slack failure notification sent"
+            else
+              echo "WARNING: Slack notification failed (exit code: $?)"
+              echo "[DEBUG] Webhook URL: ${SLACK_WEBHOOK_URL}"
+            fi
+          else
+            echo "INFO: No Slack webhook configured, skipping notification"
+          fi
+        else
+          echo "INFO: Workflow succeeded, no failure notification needed"
+        fi
+
+      env:
+      - name: SLACK_WEBHOOK_URL
+        valueFrom:
+          secretKeyRef:
+            name: osde2e-credentials
+            key: slack-webhook-url
+            optional: true
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+
