@@ -4,6 +4,7 @@
 package osde2etests
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +31,7 @@ func TestOsdExampleOperator(t *testing.T) {
 // Failing test case added on purpose
 var _ = Describe("Intentional Failure Test", func() {
 	It("should fail on purpose", func() {
+		fmt.Println("Running Intentional Failure Test")
 		Expect(true).To(BeFalse(), "This test is designed to fail intentionally")
 	})
 })
