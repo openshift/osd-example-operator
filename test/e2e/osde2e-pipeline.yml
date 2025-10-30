@@ -1,0 +1,162 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: osde2e-test-pipeline
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/categories: Testing
+    tekton.dev/tags: osde2e,testing,e2e,pipeline
+    tekton.dev/displayName: "OSDE2E Test Pipeline"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    This pipeline orchestrates osde2e testing with comprehensive result collection
+    for Tekton Results observability. It runs tests, collects logs and JUnit results,
+    and provides structured output for monitoring and analysis.
+
+  params:
+  - name: OSDE2E_CONFIGS
+    type: string
+    description: Configuration string for osde2e (e.g., "rosa,sts,int,ad-hoc-image")
+  - name: TEST_IMAGE
+    type: string
+    description: The test image to run
+  - name: IMAGE_TAG
+    type: string
+    description: Tag for the test image
+    default: "latest"
+  - name: OCM_CLIENT_ID
+    type: string
+    description: OCM client ID for authentication
+    default: ""
+  - name: OCM_CLIENT_SECRET
+    type: string
+    description: OCM client secret for authentication
+    default: ""
+  - name: AWS_ACCESS_KEY_ID
+    type: string
+    description: AWS access key ID
+    default: ""
+  - name: AWS_SECRET_ACCESS_KEY
+    type: string
+    description: AWS secret access key
+    default: ""
+  - name: CLOUD_PROVIDER_REGION
+    type: string
+    description: Cloud provider region
+    default: "us-east-1"
+  - name: LOG_BUCKET
+    type: string
+    description: S3 bucket for logs
+    default: "osde2e-logs"
+  - name: USE_EXISTING_CLUSTER
+    type: string
+    description: Whether to use existing cluster
+    default: "TRUE"
+  - name: CAD_PAGERDUTY_ROUTING_KEY
+    type: string
+    description: PagerDuty routing key for alerts
+    default: ""
+
+  workspaces:
+  - name: test-workspace
+    description: Shared workspace for test execution and result storage
+
+  results:
+  - name: final-test-status
+    description: Final test status from the pipeline
+    value: $(tasks.osde2e-test.results.test-status)
+  - name: test-summary
+    description: Test execution summary
+    value: $(tasks.osde2e-test.results.test-summary)
+
+  tasks:
+  - name: osde2e-test
+    taskRef:
+      name: osde2e-test-task
+    params:
+    - name: OSDE2E_CONFIGS
+      value: $(params.OSDE2E_CONFIGS)
+    - name: TEST_IMAGE
+      value: $(params.TEST_IMAGE)
+    - name: IMAGE_TAG
+      value: $(params.IMAGE_TAG)
+    - name: OCM_CLIENT_ID
+      value: $(params.OCM_CLIENT_ID)
+    - name: OCM_CLIENT_SECRET
+      value: $(params.OCM_CLIENT_SECRET)
+    - name: AWS_ACCESS_KEY_ID
+      value: $(params.AWS_ACCESS_KEY_ID)
+    - name: AWS_SECRET_ACCESS_KEY
+      value: $(params.AWS_SECRET_ACCESS_KEY)
+    - name: CLOUD_PROVIDER_REGION
+      value: $(params.CLOUD_PROVIDER_REGION)
+    - name: LOG_BUCKET
+      value: $(params.LOG_BUCKET)
+    - name: USE_EXISTING_CLUSTER
+      value: $(params.USE_EXISTING_CLUSTER)
+    - name: CAD_PAGERDUTY_ROUTING_KEY
+      value: $(params.CAD_PAGERDUTY_ROUTING_KEY)
+    workspaces:
+    - name: test-results
+      workspace: test-workspace
+
+  finally:
+  - name: cleanup-and-report
+    params:
+    - name: TEST_STATUS
+      value: $(tasks.osde2e-test.results.test-status)
+    - name: OSDE2E_CONFIGS
+      value: $(params.OSDE2E_CONFIGS)
+    taskSpec:
+      params:
+      - name: TEST_STATUS
+      - name: OSDE2E_CONFIGS
+      workspaces:
+      - name: test-results
+        mountPath: /workspace/test-results
+      steps:
+      - name: final-report
+        image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+
+          echo "=== Final Pipeline Report ==="
+          echo "Pipeline execution completed"
+          echo "Test Status: $(params.TEST_STATUS)"
+          echo "Configuration: $(params.OSDE2E_CONFIGS)"
+          echo "Timestamp: $(date -Iseconds)"
+
+          # Log final status to workspace
+          {
+            echo "=== Pipeline Final Report ==="
+            echo "Execution completed at: $(date -Iseconds)"
+            echo "Final Status: $(params.TEST_STATUS)"
+            echo "Configuration: $(params.OSDE2E_CONFIGS)"
+            echo ""
+            echo "Available result files:"
+            find /workspace/test-results -type f -name "*.log" -o -name "*.xml" | sort
+          } >> /workspace/test-results/logs/pipeline-final-report.log
+
+          if [ "$(params.TEST_STATUS)" = "PASS" ]; then
+            echo "✅ Pipeline completed successfully"
+            exit 0
+          else
+            echo "❌ Pipeline completed with test failures"
+            # Don't fail the finally task, just report
+            exit 0
+          fi
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+    workspaces:
+    - name: test-results
+      workspace: test-workspace
+
