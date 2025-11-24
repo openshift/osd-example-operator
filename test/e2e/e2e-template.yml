@@ -36,6 +36,8 @@ parameters:
     required: false
   - name: GEMINI_API_KEY
     required: false
+  - name: SLACK_CHANNEL
+    required: false
 objects:
   - apiVersion: batch/v1
     kind: Job
@@ -67,8 +69,10 @@ objects:
                 seccompProfile:
                   type: RuntimeDefault
               env:
-                - name: AD_HOC_TEST_IMAGES
-                  value: ${TEST_IMAGE}:${IMAGE_TAG}
+                - name: TEST_SUITES_YAML
+                  value: |-
+                    - image: ${TEST_IMAGE}:${IMAGE_TAG}
+                      slackChannel: ${SLACK_CHANNEL}
                 - name: OCM_CLIENT_ID
                   value: ${OCM_CLIENT_ID}
                 - name: OCM_CLIENT_SECRET
