@@ -1,0 +1,78 @@
+---
+# ClusterLogForwarder for Tekton Pipeline Logs to Loki
+# Forwards only Tekton-managed application logs to LokiStack
+apiVersion: observability.openshift.io/v1
+kind: ClusterLogForwarder
+metadata:
+  name: tekton-to-loki
+  namespace: openshift-logging
+  labels:
+    app: tekton
+    component: logging
+spec:
+  # Management state
+  managementState: Managed
+
+  # Service Account (will be auto-created by the operator)
+  serviceAccount:
+    name: collector
+
+  # Input: Filter only Tekton-managed application logs
+  inputs:
+  - name: tekton-logs
+    type: application
+    application:
+      selector:
+        matchExpressions:
+        # Match pods managed by Tekton Pipelines
+        - key: app.kubernetes.io/managed-by
+          operator: In
+          values:
+          - tekton-pipelines
+          - pipelinesascode.tekton.dev
+      # Optional: Limit to specific namespaces
+      namespaces:
+      - osde2e-tekton
+
+  # Output: LokiStack in osde2e-tekton namespace
+  outputs:
+  - name: loki-output
+    type: lokiStack
+    lokiStack:
+      # Target LokiStack
+      target:
+        name: osde2e-loki
+        namespace: osde2e-tekton
+
+      # Authentication
+      authentication:
+        token:
+          from: serviceAccount
+
+      # TLS Configuration
+      tls:
+        ca:
+          key: service-ca.crt
+          configMapName: openshift-service-ca.crt
+
+      # Label configuration for better log organization
+      labelKeys:
+        application:
+          # Don't use global labels, use custom ones
+          ignoreGlobal: true
+          labelKeys:
+          - log_type
+          - kubernetes.namespace_name
+          - kubernetes.pod_name
+          - kubernetes.container_name
+          - openshift_cluster_id
+
+  # Pipeline: Connect input to output
+  pipelines:
+  - name: tekton-to-loki-pipeline
+    inputRefs:
+    - tekton-logs
+    outputRefs:
+    - loki-output
+    labels:
+      pipeline: tekton

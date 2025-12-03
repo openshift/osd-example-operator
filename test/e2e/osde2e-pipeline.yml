@@ -14,7 +14,8 @@ spec:
   description: >-
     This pipeline orchestrates osde2e testing with comprehensive result collection
     for Tekton Results observability. It runs tests, collects logs and JUnit results,
-    and provides structured output for monitoring and analysis.
+    uploads results to S3 for long-term storage, and provides structured output
+    for monitoring and analysis.
 
   params:
   - name: OSDE2E_CONFIGS
@@ -63,6 +64,10 @@ spec:
     type: string
     description: PagerDuty routing key for alerts
     default: ""
+  - name: S3_RESULTS_BUCKET
+    type: string
+    description: S3 bucket for storing test results (long-term)
+    default: "osde2e-loki-logs"
 
   workspaces:
   - name: test-workspace
@@ -110,59 +115,21 @@ spec:
       workspace: test-workspace
 
   finally:
-  - name: cleanup-and-report
+  # Upload results to S3 for long-term storage and URL access
+  - name: upload-results-to-s3
+    taskRef:
+      name: upload-to-s3-task
     params:
+    - name: S3_BUCKET
+      value: $(params.S3_RESULTS_BUCKET)
+    - name: PIPELINE_RUN_NAME
+      value: $(context.pipelineRun.name)
+    - name: AWS_REGION
+      value: $(params.CLOUD_PROVIDER_REGION)
     - name: TEST_STATUS
       value: $(tasks.osde2e-test.results.test-status)
     - name: OSDE2E_CONFIGS
       value: $(params.OSDE2E_CONFIGS)
-    taskSpec:
-      params:
-      - name: TEST_STATUS
-      - name: OSDE2E_CONFIGS
-      workspaces:
-      - name: test-results
-        mountPath: /workspace/test-results
-      steps:
-      - name: final-report
-        image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
-        script: |
-          #!/bin/bash
-          set -euo pipefail
-
-          echo "=== Final Pipeline Report ==="
-          echo "Pipeline execution completed"
-          echo "Test Status: $(params.TEST_STATUS)"
-          echo "Configuration: $(params.OSDE2E_CONFIGS)"
-          echo "Timestamp: $(date -Iseconds)"
-
-          # Log final status to workspace
-          {
-            echo "=== Pipeline Final Report ==="
-            echo "Execution completed at: $(date -Iseconds)"
-            echo "Final Status: $(params.TEST_STATUS)"
-            echo "Configuration: $(params.OSDE2E_CONFIGS)"
-            echo ""
-            echo "Available result files:"
-            find /workspace/test-results -type f -name "*.log" -o -name "*.xml" | sort
-          } >> /workspace/test-results/logs/pipeline-final-report.log
-
-          if [ "$(params.TEST_STATUS)" = "PASS" ]; then
-            echo "✅ Pipeline completed successfully"
-            exit 0
-          else
-            echo "❌ Pipeline completed with test failures"
-            # Don't fail the finally task, just report
-            exit 0
-          fi
-        securityContext:
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
-          seccompProfile:
-            type: RuntimeDefault
     workspaces:
     - name: test-results
       workspace: test-workspace
-

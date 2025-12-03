@@ -81,6 +81,9 @@ spec:
   steps:
   - name: setup-test-environment
     image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
+    env:
+    - name: HOME
+      value: /tekton/home
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -160,10 +163,15 @@ spec:
       # Copy summary to result
       cp $(workspaces.test-results.path)/logs/summary.log $(results.test-summary.path)
 
-      # Exit with the original test exit code to maintain pipeline behavior
-      exit $TEST_EXIT_CODE
+      # Always exit 0 here to allow collect-test-results step to run
+      # The actual test status is stored in test-status result
+      echo "Test execution completed with exit code: $TEST_EXIT_CODE"
+      exit 0
 
     env:
+    # Set HOME to writable directory to avoid .docker permission warnings
+    - name: HOME
+      value: /tekton/home
     # Test configuration
     - name: AD_HOC_TEST_IMAGES
       value: "$(params.TEST_IMAGE):$(params.IMAGE_TAG)"
@@ -227,6 +235,9 @@ spec:
 
   - name: collect-test-results
     image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
+    env:
+    - name: HOME
+      value: /tekton/home
     script: |
       #!/bin/bash
       set -euo pipefail
@@ -234,6 +245,8 @@ spec:
       echo "Collecting and processing test results..."
 
       # Process JUnit XML results from osde2e REPORT_DIR
+      # NOTE: We store summary only in Results (to avoid 4KB limit)
+      # Full JUnit XML is saved to workspace for later retrieval
       JUNIT_FOUND=false
 
       # Check for JUnit XML in reports directory (osde2e default location)
@@ -242,12 +255,18 @@ spec:
         find $(workspaces.test-results.path)/reports -name "*.xml" -type f > /tmp/junit_files.txt 2>/dev/null || true
 
         if [ -s /tmp/junit_files.txt ]; then
-          echo "Found JUnit XML files, merging results..."
-          cat $(cat /tmp/junit_files.txt) > $(results.test-results.path) 2>/dev/null && JUNIT_FOUND=true
+          echo "Found JUnit XML files"
+          JUNIT_COUNT=$(cat /tmp/junit_files.txt | wc -l)
+
+          # Merge full results to workspace (not to Result)
+          cat $(cat /tmp/junit_files.txt) > $(workspaces.test-results.path)/junit/merged-results.xml 2>/dev/null && JUNIT_FOUND=true
+
+          # Store only summary in Result (to avoid size limit)
+          echo "JUnit: Found $JUNIT_COUNT XML file(s)" > $(results.test-results.path)
 
           # Log JUnit summary
           echo "=== JUnit Results Summary ===" >> $(workspaces.test-results.path)/logs/summary.log
-          echo "JUnit XML files found:" >> $(workspaces.test-results.path)/logs/summary.log
+          echo "JUnit XML files found: $JUNIT_COUNT" >> $(workspaces.test-results.path)/logs/summary.log
           cat /tmp/junit_files.txt >> $(workspaces.test-results.path)/logs/summary.log
         fi
       fi
@@ -255,18 +274,19 @@ spec:
       # Also check for junit.xml in the main reports directory (common osde2e pattern)
       if [ -f "$(workspaces.test-results.path)/reports/junit.xml" ]; then
         echo "Found junit.xml in reports directory"
-        cp $(workspaces.test-results.path)/reports/junit.xml $(results.test-results.path)
+        cp $(workspaces.test-results.path)/reports/junit.xml $(workspaces.test-results.path)/junit/junit.xml
+        echo "JUnit: reports/junit.xml" > $(results.test-results.path)
         JUNIT_FOUND=true
       fi
 
-      # If no JUnit results found, create empty result
+      # If no JUnit results found, create minimal result
       if [ "$JUNIT_FOUND" = "false" ]; then
-        echo "No JUnit XML results found, creating empty result"
-        echo '<?xml version="1.0" encoding="UTF-8"?><testsuite name="osde2e" tests="0" failures="0" errors="0" time="0"/>' > $(results.test-results.path)
+        echo "No JUnit XML results found"
+        echo "JUnit: No results" > $(results.test-results.path)
         echo "No JUnit XML files found" >> $(workspaces.test-results.path)/logs/summary.log
       fi
 
-      # Consolidate all logs
+      # Consolidate all logs to workspace (not to Result to avoid size limit)
       echo "Consolidating test logs..."
       {
         echo "=== OSDE2E Test Execution Logs ==="
@@ -309,7 +329,11 @@ spec:
             cat $(workspaces.test-results.path)/reports/test_output.log
           fi
         fi
-      } > $(results.test-logs.path)
+      } > $(workspaces.test-results.path)/logs/consolidated.log
+
+      # Store only summary in Result (to avoid 4KB limit)
+      echo "Logs consolidated at: $(date -Iseconds)" > $(results.test-logs.path)
+      echo "Full logs available in workspace: logs/consolidated.log" >> $(results.test-logs.path)
 
       echo "Test result collection completed successfully"
 
