@@ -1,0 +1,38 @@
+---
+# ServiceAccount for querying Tekton Results API
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tekton-results-reader
+  namespace: openshift-pipelines
+---
+# ClusterRole for reading Tekton Results
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tekton-results-reader
+rules:
+- apiGroups:
+  - results.tekton.dev
+  resources:
+  - results
+  - records
+  - logs
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Bind the ClusterRole to the ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tekton-results-reader-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-results-reader
+subjects:
+- kind: ServiceAccount
+  name: tekton-results-reader
+  namespace: openshift-pipelines
