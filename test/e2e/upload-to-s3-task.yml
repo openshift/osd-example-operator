@@ -1,0 +1,158 @@
+# Task: Upload Test Results to S3
+# This task uploads test logs and reports to S3 for long-term storage and URL access
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upload-to-s3-task
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/categories: Storage
+    tekton.dev/tags: s3,upload,results
+    tekton.dev/displayName: "Upload Results to S3"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    Upload test results (logs, JUnit XML, reports) to S3 bucket for long-term
+    storage. Generates pre-signed URLs for easy browser access.
+
+  params:
+    - name: S3_BUCKET
+      type: string
+      description: S3 bucket name for storing test results
+      default: "osde2e-loki-logs"
+    - name: PIPELINE_RUN_NAME
+      type: string
+      description: Name of the PipelineRun (used for S3 path)
+    - name: AWS_REGION
+      type: string
+      description: AWS region for S3 bucket
+      default: "us-east-1"
+    - name: TEST_STATUS
+      type: string
+      description: Test status (PASS/FAIL)
+      default: "UNKNOWN"
+    - name: OSDE2E_CONFIGS
+      type: string
+      description: Test configuration
+      default: ""
+
+  workspaces:
+    - name: test-results
+      description: Workspace containing test results to upload
+      mountPath: /workspace/test-results
+
+  results:
+    - name: s3-path
+      description: S3 path where results are stored
+    - name: upload-status
+      description: Upload status (SUCCESS/FAILED)
+
+  steps:
+    - name: upload-to-s3
+      image: amazon/aws-cli:2.15.0
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: loki-s3-credentials
+              key: access_key_id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: loki-s3-credentials
+              key: access_key_secret
+        - name: AWS_DEFAULT_REGION
+          value: "$(params.AWS_REGION)"
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        S3_BUCKET="$(params.S3_BUCKET)"
+        PIPELINE_RUN="$(params.PIPELINE_RUN_NAME)"
+
+        DATE_PREFIX=$(date +%Y-%m-%d)
+        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        S3_PREFIX="test-results/${DATE_PREFIX}/${PIPELINE_RUN}-${TIMESTAMP}"
+
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📤 Uploading Test Results to S3"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Bucket: ${S3_BUCKET}"
+        echo "Prefix: ${S3_PREFIX}"
+        echo "Test Status: $(params.TEST_STATUS)"
+        echo ""
+
+        # Upload all files
+        UPLOAD_STATUS="SUCCESS"
+        if aws s3 cp /workspace/test-results/ "s3://${S3_BUCKET}/${S3_PREFIX}/" --recursive 2>&1; then
+          echo "✅ Upload completed"
+        else
+          echo "⚠️ Upload had issues"
+          UPLOAD_STATUS="PARTIAL"
+        fi
+
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📁 Uploaded Files"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}/" --recursive 2>/dev/null | head -20
+
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🔗 Access URLs"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "S3 URI: s3://${S3_BUCKET}/${S3_PREFIX}/"
+        echo ""
+        echo "Download command:"
+        echo "  aws s3 cp s3://${S3_BUCKET}/${S3_PREFIX}/ ./results/ --recursive"
+        echo ""
+
+        # Generate presigned URLs (valid 7 days)
+        echo "Pre-signed URLs (valid 7 days):"
+
+        if aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}/logs/osde2e-full.log" 2>/dev/null; then
+          echo ""
+          echo "📄 osde2e-full.log:"
+          aws s3 presign "s3://${S3_BUCKET}/${S3_PREFIX}/logs/osde2e-full.log" --expires-in 604800
+        fi
+
+        if aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}/logs/consolidated.log" 2>/dev/null; then
+          echo ""
+          echo "📄 consolidated.log:"
+          aws s3 presign "s3://${S3_BUCKET}/${S3_PREFIX}/logs/consolidated.log" --expires-in 604800
+        fi
+
+        # Find and presign first XML file
+        FIRST_XML=$(aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}/" --recursive 2>/dev/null | grep "\.xml$" | head -1 | awk '{print $4}')
+        if [ -n "$FIRST_XML" ]; then
+          echo ""
+          echo "📄 $(basename $FIRST_XML):"
+          aws s3 presign "s3://${S3_BUCKET}/$FIRST_XML" --expires-in 604800
+        fi
+
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📋 Final Report"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Test Status: $(params.TEST_STATUS)"
+        echo "Config: $(params.OSDE2E_CONFIGS)"
+        echo "S3 Path: s3://${S3_BUCKET}/${S3_PREFIX}/"
+        echo "Upload Status: ${UPLOAD_STATUS}"
+        echo ""
+
+        # Write results
+        echo -n "s3://${S3_BUCKET}/${S3_PREFIX}/" > $(results.s3-path.path)
+        echo -n "${UPLOAD_STATUS}" > $(results.upload-status.path)
+
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+
