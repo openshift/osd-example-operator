@@ -70,8 +70,8 @@ spec:
     default: "osde2e-loki-logs"
 
   workspaces:
-  - name: test-workspace
-    description: Shared workspace for test execution and result storage
+  - name: workspace
+    description: Combined workspace for artifacts and shared data (Prow-compatible paths)
 
   results:
   - name: final-test-status
@@ -111,8 +111,8 @@ spec:
     - name: CAD_PAGERDUTY_ROUTING_KEY
       value: $(params.CAD_PAGERDUTY_ROUTING_KEY)
     workspaces:
-    - name: test-results
-      workspace: test-workspace
+    - name: workspace
+      workspace: workspace
 
   finally:
   # Upload results to S3 for long-term storage and URL access
@@ -131,5 +131,5 @@ spec:
     - name: OSDE2E_CONFIGS
       value: $(params.OSDE2E_CONFIGS)
     workspaces:
-    - name: test-results
-      workspace: test-workspace
+    - name: workspace
+      workspace: workspace

@@ -176,6 +176,25 @@ test/e2e/
 
 ---
 
+## Workspace Structure (Prow-Compatible)
+
+The Tekton pipeline uses a single workspace with subdirectories that match Prow's standard paths:
+
+```
+workspace/
+├── artifacts/          # Matches Prow ARTIFACTS environment variable
+│   ├── junit/          # JUnit XML results
+│   ├── logs/           # Test execution logs
+│   │   ├── osde2e-full.log
+│   │   ├── consolidated.log
+│   │   └── summary.log
+│   └── *.xml           # JUnit results
+└── shared/             # Matches Prow SHARED_DIR environment variable
+    └── cluster-id      # Data shared between steps
+```
+
+---
+
 ## App-Interface Integration
 
 The `e2e-tekton-template.yml` can be referenced by app-interface:
@@ -195,8 +214,9 @@ managedResourceTypes:
 - ServiceAccount
 - Role.rbac.authorization.k8s.io
 - RoleBinding.rbac.authorization.k8s.io
-- PersistentVolumeClaim
 ```
+
+**Note:** PersistentVolumeClaim is no longer needed as the template uses `volumeClaimTemplate` for dynamic PVC creation.
 
 ---
 
