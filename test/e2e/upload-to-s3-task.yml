@@ -39,9 +39,8 @@ spec:
       default: ""
 
   workspaces:
-    - name: test-results
-      description: Workspace containing test results to upload
-      mountPath: /workspace/test-results
+    - name: workspace
+      description: Combined workspace containing test artifacts to upload
 
   results:
     - name: s3-path
@@ -84,14 +83,44 @@ spec:
         echo "Test Status: $(params.TEST_STATUS)"
         echo ""
 
-        # Upload all files
+        # Upload all files from workspace artifacts directory with correct content-types
+        # This ensures files open in browser instead of downloading
+        ARTIFACTS_DIR="$(workspaces.workspace.path)/artifacts"
         UPLOAD_STATUS="SUCCESS"
-        if aws s3 cp /workspace/test-results/ "s3://${S3_BUCKET}/${S3_PREFIX}/" --recursive 2>&1; then
-          echo "✅ Upload completed"
-        else
-          echo "⚠️ Upload had issues"
-          UPLOAD_STATUS="PARTIAL"
-        fi
+
+        cd ${ARTIFACTS_DIR}
+
+        # Upload .log and .txt files as text/plain (opens in browser)
+        echo "Uploading log files..."
+        find . -type f \( -name "*.log" -o -name "*.txt" \) -exec \
+          aws s3 cp {} "s3://${S3_BUCKET}/${S3_PREFIX}/{}" \
+          --content-type "text/plain; charset=utf-8" \; 2>&1 || true
+
+        # Upload .xml files as application/xml (opens in browser)
+        echo "Uploading XML files..."
+        find . -type f -name "*.xml" -exec \
+          aws s3 cp {} "s3://${S3_BUCKET}/${S3_PREFIX}/{}" \
+          --content-type "application/xml" \; 2>&1 || true
+
+        # Upload .json files as application/json (opens in browser)
+        echo "Uploading JSON files..."
+        find . -type f -name "*.json" -exec \
+          aws s3 cp {} "s3://${S3_BUCKET}/${S3_PREFIX}/{}" \
+          --content-type "application/json" \; 2>&1 || true
+
+        # Upload .html files as text/html (renders in browser)
+        echo "Uploading HTML files..."
+        find . -type f -name "*.html" -exec \
+          aws s3 cp {} "s3://${S3_BUCKET}/${S3_PREFIX}/{}" \
+          --content-type "text/html" \; 2>&1 || true
+
+        # Upload remaining files with default content-type
+        echo "Uploading other files..."
+        find . -type f ! -name "*.log" ! -name "*.txt" ! -name "*.xml" ! -name "*.json" ! -name "*.html" -exec \
+          aws s3 cp {} "s3://${S3_BUCKET}/${S3_PREFIX}/{}" \; 2>&1 || true
+
+        cd - > /dev/null
+        echo "✅ Upload completed"
 
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

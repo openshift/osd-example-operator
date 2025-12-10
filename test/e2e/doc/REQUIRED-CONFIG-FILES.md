@@ -26,6 +26,16 @@ Complete list of configuration files needed for manual OSDE2E Tekton Pipeline se
 - Captures JUnit XML results
 - Stores logs in workspace PVC
 - Produces structured results for Tekton Results
+- Uses single workspace with subdirectories (Prow-compatible)
+
+**Workspace Structure:**
+```
+workspace/
+├── artifacts/          # ARTIFACTS - JUnit XML, reports, logs
+│   ├── junit/          # JUnit XML results
+│   └── logs/           # Test logs
+└── shared/             # SHARED_DIR - Data shared between steps
+```
 
 **Apply Command:**
 ```bash
@@ -61,33 +71,10 @@ spec:
   - name: IMAGE_TAG
     type: string
     default: "latest"
-  - name: OCM_CLIENT_ID
-    type: string
-    default: ""
-  - name: OCM_CLIENT_SECRET
-    type: string
-    default: ""
-  - name: AWS_ACCESS_KEY_ID
-    type: string
-    default: ""
-  - name: AWS_SECRET_ACCESS_KEY
-    type: string
-    default: ""
-  - name: CLOUD_PROVIDER_REGION
-    type: string
-    default: "us-east-1"
-  - name: LOG_BUCKET
-    type: string
-    default: "osde2e-logs"
-  - name: USE_EXISTING_CLUSTER
-    type: string
-    default: "TRUE"
   - name: CLUSTER_ID
     type: string
     default: ""
-  - name: CAD_PAGERDUTY_ROUTING_KEY
-    type: string
-    default: ""
+  # ... other params
 
   results:
   - name: test-results
@@ -100,63 +87,43 @@ spec:
     description: Test execution summary
 
   workspaces:
-  - name: test-results
-    description: Workspace for storing test results and logs
-    mountPath: /workspace/test-results
+  - name: workspace
+    description: Combined workspace for artifacts and shared data (Prow-compatible paths)
 
   steps:
   - name: setup-test-environment
     image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
-    env:
-    - name: HOME
-      value: /tekton/home
     script: |
       #!/bin/bash
       set -euo pipefail
-      mkdir -p $(workspaces.test-results.path)/junit
-      mkdir -p $(workspaces.test-results.path)/logs
-      mkdir -p $(workspaces.test-results.path)/reports
-      mkdir -p $(workspaces.test-results.path)/shared
-      echo "Workspace directories created"
+
+      # Define paths matching Prow structure within single workspace
+      ARTIFACTS_DIR="$(workspaces.workspace.path)/artifacts"
+      SHARED_DIR="$(workspaces.workspace.path)/shared"
+
+      mkdir -p ${ARTIFACTS_DIR}/junit
+      mkdir -p ${ARTIFACTS_DIR}/logs
+      mkdir -p ${SHARED_DIR}
+      echo "Workspace directories created (Prow-compatible)"
 
   - name: run-osde2e-tests
-    image: $(params.TEST_IMAGE):$(params.IMAGE_TAG)
+    image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
     env:
-    - name: OSDE2E_CONFIGS
-      value: $(params.OSDE2E_CONFIGS)
-    - name: OCM_CLIENT_ID
-      value: $(params.OCM_CLIENT_ID)
-    - name: OCM_CLIENT_SECRET
-      value: $(params.OCM_CLIENT_SECRET)
-    - name: AWS_ACCESS_KEY_ID
-      value: $(params.AWS_ACCESS_KEY_ID)
-    - name: AWS_SECRET_ACCESS_KEY
-      value: $(params.AWS_SECRET_ACCESS_KEY)
-    - name: CLOUD_PROVIDER_REGION
-      value: $(params.CLOUD_PROVIDER_REGION)
-    - name: LOG_BUCKET
-      value: $(params.LOG_BUCKET)
-    - name: USE_EXISTING_CLUSTER
-      value: $(params.USE_EXISTING_CLUSTER)
-    - name: CLUSTER_ID
-      value: $(params.CLUSTER_ID)
+    # osde2e output configuration - use workspace subdirectories
+    - name: ARTIFACTS
+      value: "$(workspaces.workspace.path)/artifacts"
     - name: REPORT_DIR
-      value: $(workspaces.test-results.path)/reports
-    - name: JUNIT_REPORT_DIR
-      value: $(workspaces.test-results.path)/junit
+      value: "$(workspaces.workspace.path)/artifacts"
+    - name: SHARED_DIR
+      value: "$(workspaces.workspace.path)/shared"
     script: |
       #!/bin/bash
       set -euo pipefail
 
-      # Run tests and capture results
-      /osde2e test --configs $OSDE2E_CONFIGS 2>&1 | tee $(workspaces.test-results.path)/logs/osde2e-full.log
+      ARTIFACTS_DIR="$(workspaces.workspace.path)/artifacts"
 
-      # Determine test status
-      if [ $? -eq 0 ]; then
-        echo "PASS" > /tmp/test-status.txt
-      else
-        echo "FAIL" > /tmp/test-status.txt
-      fi
+      # Run tests and capture results
+      /osde2e test --configs $(params.OSDE2E_CONFIGS) 2>&1 | tee ${ARTIFACTS_DIR}/logs/osde2e-full.log
 ```
 
 </details>
@@ -168,7 +135,7 @@ spec:
 **Purpose:** Uploads test results to S3 for long-term storage and generates pre-signed URLs.
 
 **Key Features:**
-- Uploads all files from workspace to S3
+- Uploads all files from workspace artifacts to S3
 - Organizes by date: `test-results/YYYY-MM-DD/<pipelinerun>/`
 - Generates 7-day pre-signed URLs for browser access
 
@@ -209,8 +176,8 @@ spec:
       default: ""
 
   workspaces:
-    - name: test-results
-      mountPath: /workspace/test-results
+    - name: workspace
+      description: Combined workspace containing test artifacts to upload
 
   results:
     - name: s3-path
@@ -244,10 +211,11 @@ spec:
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
         S3_PREFIX="test-results/${DATE_PREFIX}/${PIPELINE_RUN}-${TIMESTAMP}"
 
-        echo "Uploading to s3://${S3_BUCKET}/${S3_PREFIX}/"
+        # Upload from workspace artifacts directory
+        ARTIFACTS_DIR="$(workspaces.workspace.path)/artifacts"
 
-        # Upload all files
-        aws s3 cp /workspace/test-results/ "s3://${S3_BUCKET}/${S3_PREFIX}/" --recursive
+        echo "Uploading to s3://${S3_BUCKET}/${S3_PREFIX}/"
+        aws s3 cp ${ARTIFACTS_DIR}/ "s3://${S3_BUCKET}/${S3_PREFIX}/" --recursive
 
         # Generate pre-signed URLs (valid 7 days = 604800 seconds)
         echo "Pre-signed URLs (valid 7 days):"
@@ -269,6 +237,7 @@ spec:
 - Runs main test Task
 - Automatically uploads results to S3 in `finally` section
 - Passes test status to S3 upload Task
+- Uses single shared workspace
 
 **Apply Command:**
 ```bash
@@ -295,39 +264,17 @@ spec:
   - name: IMAGE_TAG
     type: string
     default: "latest"
-  - name: OCM_CLIENT_ID
-    type: string
-    default: ""
-  - name: OCM_CLIENT_SECRET
-    type: string
-    default: ""
-  - name: AWS_ACCESS_KEY_ID
-    type: string
-    default: ""
-  - name: AWS_SECRET_ACCESS_KEY
-    type: string
-    default: ""
-  - name: CLOUD_PROVIDER_REGION
-    type: string
-    default: "us-east-1"
-  - name: LOG_BUCKET
-    type: string
-    default: "osde2e-logs"
-  - name: USE_EXISTING_CLUSTER
-    type: string
-    default: "TRUE"
   - name: CLUSTER_ID
-    type: string
-    default: ""
-  - name: CAD_PAGERDUTY_ROUTING_KEY
     type: string
     default: ""
   - name: S3_RESULTS_BUCKET
     type: string
     default: "osde2e-loki-logs"
+  # ... other params
 
   workspaces:
-  - name: test-workspace
+  - name: workspace
+    description: Combined workspace for artifacts and shared data (Prow-compatible paths)
 
   results:
   - name: final-test-status
@@ -344,10 +291,11 @@ spec:
       value: $(params.TEST_IMAGE)
     - name: IMAGE_TAG
       value: $(params.IMAGE_TAG)
-    # ... other params passed through
+    - name: CLUSTER_ID
+      value: $(params.CLUSTER_ID)
     workspaces:
-    - name: test-results
-      workspace: test-workspace
+    - name: workspace
+      workspace: workspace
 
   finally:
   - name: upload-results-to-s3
@@ -358,13 +306,11 @@ spec:
       value: $(params.S3_RESULTS_BUCKET)
     - name: PIPELINE_RUN_NAME
       value: $(context.pipelineRun.name)
-    - name: AWS_REGION
-      value: $(params.CLOUD_PROVIDER_REGION)
     - name: TEST_STATUS
       value: $(tasks.osde2e-test.results.test-status)
     workspaces:
-    - name: test-results
-      workspace: test-workspace
+    - name: workspace
+      workspace: workspace
 ```
 
 </details>
@@ -376,7 +322,7 @@ spec:
 **Purpose:** OpenShift Template for easily creating PipelineRuns.
 
 **Key Features:**
-- Creates PVC for test workspace
+- Uses volumeClaimTemplate for dynamic PVC creation (single workspace)
 - Creates PipelineRun with all parameters
 - Auto-generates unique JOBID
 - Sets timeouts (3 hours total)
@@ -416,38 +362,12 @@ parameters:
     displayName: "Cluster ID"
     required: false
     value: ''
-  - name: OCM_CLIENT_ID
-    required: false
-  - name: OCM_CLIENT_SECRET
-    required: false
-  - name: AWS_ACCESS_KEY_ID
-    required: false
-  - name: AWS_SECRET_ACCESS_KEY
-    required: false
-  - name: CLOUD_PROVIDER_REGION
-    value: "us-east-1"
   - name: JOBID
     generate: expression
     from: "[0-9a-z]{7}"
 
 objects:
-  # PVC for workspace
-  - apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-      name: osde2e-test-workspace-${JOBID}
-      labels:
-        app: osde2e
-        job-id: ${JOBID}
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-          storage: 2Gi
-      storageClassName: gp3-csi
-
-  # PipelineRun
+  # PipelineRun with volumeClaimTemplate (no separate PVC needed)
   - apiVersion: tekton.dev/v1
     kind: PipelineRun
     metadata:
@@ -472,11 +392,17 @@ objects:
         value: ${IMAGE_TAG}
       - name: CLUSTER_ID
         value: ${CLUSTER_ID}
-      # ... other params
       workspaces:
-      - name: test-workspace
-        persistentVolumeClaim:
-          claimName: osde2e-test-workspace-${JOBID}
+      # Single workspace using volumeClaimTemplate
+      - name: workspace
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+            storageClassName: gp3-csi
       timeouts:
         pipeline: "3h0m0s"
         tasks: "2h45m0s"

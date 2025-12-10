@@ -731,12 +731,12 @@ oc run pvc-reader --rm -it --restart=Never \
         \"stdin\": true,
         \"tty\": true,
         \"volumeMounts\": [{
-          \"name\": \"test-results\",
+          \"name\": \"workspace\",
           \"mountPath\": \"/workspace\"
         }]
       }],
       \"volumes\": [{
-        \"name\": \"test-results\",
+        \"name\": \"workspace\",
         \"persistentVolumeClaim\": {
           \"claimName\": \"$PVC_NAME\"
         }
@@ -745,10 +745,10 @@ oc run pvc-reader --rm -it --restart=Never \
   }" \
   -n osde2e-tekton
 
-# Inside pod:
-# ls /workspace/
-# cat /workspace/logs/osde2e-full.log
-# cat /workspace/reports/test_output.log
+# Inside pod (Prow-compatible paths):
+# ls /workspace/artifacts/
+# cat /workspace/artifacts/logs/osde2e-full.log
+# cat /workspace/artifacts/test_output.log
 ```
 
 ### 11.5 Query Tekton Results API

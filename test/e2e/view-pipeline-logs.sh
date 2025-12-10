@@ -167,24 +167,25 @@ read_logs_from_pods() {
 
 read_logs_from_workspace() {
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${CYAN}Reading logs from Workspace PVC${NC}"
+  echo -e "${CYAN}Reading logs from Workspace PVC (Prow-compatible paths)${NC}"
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
   # Extract PipelineRun short ID
   RUN_ID=$(echo "$PIPELINERUN_NAME" | rev | cut -d'-' -f1 | rev)
-  PVC_NAME="osde2e-test-workspace-$RUN_ID"
 
-  echo "Looking for PVC: $PVC_NAME"
+  # Find PVC - could be volumeClaimTemplate generated or pre-created
+  # volumeClaimTemplate creates PVC with format: pvc-<uuid>
+  PVC_NAME=$(oc get pvc -n "$NAMESPACE" -l tekton.dev/pipelineRun="$PIPELINERUN_NAME" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 
-  if ! oc get pvc "$PVC_NAME" -n "$NAMESPACE" &>/dev/null; then
-    echo -e "${RED}Error: PVC '$PVC_NAME' does not exist${NC}"
+  if [ -z "$PVC_NAME" ]; then
+    echo -e "${RED}Error: No PVC found for PipelineRun '$PIPELINERUN_NAME'${NC}"
     return 1
   fi
 
-  echo -e "${GREEN}Found PVC: $PVC_NAME${NC}"
+  echo "Found PVC: $PVC_NAME"
   echo "Creating temporary debug Pod..."
 
-  # Create temporary Pod
+  # Create temporary Pod - mount workspace and access artifacts subdirectory
   DEBUG_POD="debug-viewer-$(date +%s)"
   cat <<EOF | oc apply -f - >/dev/null
 apiVersion: v1
@@ -218,18 +219,18 @@ EOF
   echo -e "${GREEN}Debug Pod ready${NC}"
   echo ""
 
-  # List available log files
+  # List available log files (Prow-compatible path: /workspace/artifacts/logs)
   echo -e "${CYAN}Available log files:${NC}"
-  oc exec "$DEBUG_POD" -n "$NAMESPACE" -- find /workspace/test-results/logs -type f 2>/dev/null || true
+  oc exec "$DEBUG_POD" -n "$NAMESPACE" -- find /workspace/artifacts/logs -type f 2>/dev/null || true
   echo ""
 
-  # Read consolidated log
-  if oc exec "$DEBUG_POD" -n "$NAMESPACE" -- test -f /workspace/test-results/logs/consolidated.log 2>/dev/null; then
+  # Read consolidated log from Prow-compatible path
+  if oc exec "$DEBUG_POD" -n "$NAMESPACE" -- test -f /workspace/artifacts/logs/consolidated.log 2>/dev/null; then
     echo -e "${CYAN}=== Consolidated Log (consolidated.log) ===${NC}"
-    oc exec "$DEBUG_POD" -n "$NAMESPACE" -- cat /workspace/test-results/logs/consolidated.log
+    oc exec "$DEBUG_POD" -n "$NAMESPACE" -- cat /workspace/artifacts/logs/consolidated.log
   else
     echo -e "${YELLOW}Warning: consolidated.log not found, showing all available logs:${NC}"
-    oc exec "$DEBUG_POD" -n "$NAMESPACE" -- sh -c 'for log in /workspace/test-results/logs/*.log; do echo ""; echo "=== $(basename $log) ==="; cat "$log"; done'
+    oc exec "$DEBUG_POD" -n "$NAMESPACE" -- sh -c 'for log in /workspace/artifacts/logs/*.log; do echo ""; echo "=== $(basename $log) ==="; cat "$log"; done'
   fi
 
   # Cleanup
