@@ -81,26 +81,6 @@ parameters:
     description: "PagerDuty routing key for alerts"
     required: false
 objects:
-  # PersistentVolumeClaim for test workspace
-  - apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-      name: osde2e-test-workspace-${JOBID}
-      labels:
-        app: osde2e
-        component: testing
-        job-id: ${JOBID}
-        test-image-tag: ${IMAGE_TAG}
-      annotations:
-        description: "Workspace for OSDE2E test execution and result storage"
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-          storage: 2Gi
-      storageClassName: gp3-csi
-
   # PipelineRun for test execution
   # Note: Uses the default 'pipeline' ServiceAccount which has anyuid SCC
   - apiVersion: tekton.dev/v1
@@ -154,9 +134,17 @@ objects:
       - name: CAD_PAGERDUTY_ROUTING_KEY
         value: ${CAD_PAGERDUTY_ROUTING_KEY}
       workspaces:
-      - name: test-workspace
-        persistentVolumeClaim:
-          claimName: osde2e-test-workspace-${JOBID}
+      # Combined workspace for artifacts and shared data
+      # Using volumeClaimTemplate for dynamic PVC creation
+      - name: workspace
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+            storageClassName: gp3-csi
       # Timeout for the entire pipeline (3 hours like the original Job)
       timeouts:
         pipeline: "3h0m0s"

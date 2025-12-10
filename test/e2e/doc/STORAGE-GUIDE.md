@@ -27,7 +27,7 @@ Guide to test result storage: where data is stored, how to access it, and S3 con
          ▼                 ▼                 ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
 │   Workspace PVC │ │  Pod Logs       │ │ Tekton Results  │
-│   (test files)  │ │  (stdout)       │ │  (metadata)     │
+│  (artifacts/)   │ │  (stdout)       │ │  (metadata)     │
 └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
          │                   │                   │
          ▼                   ▼                   ▼
@@ -35,6 +35,30 @@ Guide to test result storage: where data is stored, how to access it, and S3 con
 │    S3 Bucket    │ │   LokiStack     │ │   PostgreSQL    │
 │  (test-results/)│ │   (→ S3 chunks) │ │   (internal)    │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
+```
+
+---
+
+## Workspace Structure (Prow-Compatible)
+
+The Tekton pipeline uses a single workspace with subdirectories that match Prow's standard paths:
+
+```
+workspace/
+├── artifacts/          # Matches Prow ARTIFACTS environment variable
+│   ├── junit/          # JUnit XML results
+│   │   └── merged-results.xml
+│   ├── logs/           # Test execution logs
+│   │   ├── setup.log
+│   │   ├── osde2e-full.log
+│   │   ├── test-execution.log
+│   │   ├── summary.log
+│   │   └── consolidated.log
+│   ├── install-log.txt
+│   ├── test_output.log
+│   └── uninstall-log.txt
+└── shared/             # Matches Prow SHARED_DIR environment variable
+    └── cluster-id      # Data shared between steps
 ```
 
 ---
@@ -196,17 +220,21 @@ Test outputs including logs, JUnit XML, and reports are uploaded to S3.
 ```
 s3://osde2e-loki-logs/
 └── test-results/
-    └── 2025-12-03/
-        └── osde2e-xxx-20251203-123456/
+    └── 2025-12-10/
+        └── osde2e-xxx-20251210-123456/
             ├── logs/
             │   ├── osde2e-full.log
             │   ├── consolidated.log
-            │   └── summary.log
-            ├── reports/
-            │   ├── test_output.log
-            │   └── install-log.txt
-            └── junit/
-                └── merged-results.xml
+            │   ├── setup.log
+            │   ├── summary.log
+            │   └── test-execution.log
+            ├── junit/
+            │   └── merged-results.xml
+            ├── install/
+            │   └── junit_xxx.xml
+            ├── install-log.txt
+            ├── test_output.log
+            └── uninstall-log.txt
 ```
 
 ### Accessing Test Results
@@ -218,7 +246,7 @@ s3://osde2e-loki-logs/
 oc logs <pipelinerun>-upload-results-to-s3-pod -n osde2e-tekton
 
 # Output includes URLs like:
-# osde2e-full.log:
+# 📄 osde2e-full.log:
 # https://osde2e-loki-logs.s3.us-east-1.amazonaws.com/test-results/...?X-Amz-...
 ```
 
@@ -229,10 +257,10 @@ oc logs <pipelinerun>-upload-results-to-s3-pod -n osde2e-tekton
 aws s3 ls s3://osde2e-loki-logs/test-results/ --recursive | head -20
 
 # Download results
-aws s3 cp s3://osde2e-loki-logs/test-results/2025-12-03/osde2e-xxx/ ./results/ --recursive
+aws s3 cp s3://osde2e-loki-logs/test-results/2025-12-10/osde2e-xxx/ ./results/ --recursive
 
 # Generate pre-signed URL manually
-aws s3 presign s3://osde2e-loki-logs/test-results/2025-12-03/xxx/logs/osde2e-full.log --expires-in 604800
+aws s3 presign s3://osde2e-loki-logs/test-results/2025-12-10/xxx/logs/osde2e-full.log --expires-in 604800
 ```
 
 ---

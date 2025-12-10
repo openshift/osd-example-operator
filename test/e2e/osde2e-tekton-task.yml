@@ -74,9 +74,8 @@ spec:
     description: Test execution summary
 
   workspaces:
-  - name: test-results
-    description: Workspace for storing test results and logs
-    mountPath: /workspace/test-results
+  - name: workspace
+    description: Combined workspace for artifacts and shared data (Prow-compatible paths)
 
   steps:
   - name: setup-test-environment
@@ -90,24 +89,30 @@ spec:
 
       echo "Setting up test environment..."
 
-      # Create workspace directories (no root needed)
-      mkdir -p $(workspaces.test-results.path)/junit
-      mkdir -p $(workspaces.test-results.path)/logs
-      mkdir -p $(workspaces.test-results.path)/reports
-      mkdir -p $(workspaces.test-results.path)/shared
+      # Define paths matching Prow structure within single workspace
+      ARTIFACTS_DIR="$(workspaces.workspace.path)/artifacts"
+      SHARED_DIR="$(workspaces.workspace.path)/shared"
 
-      echo "Workspace directories created"
+      # Create directories matching Prow structure
+      mkdir -p ${ARTIFACTS_DIR}/junit
+      mkdir -p ${ARTIFACTS_DIR}/logs
+      mkdir -p ${SHARED_DIR}
+
+      echo "Workspace directories created (Prow-compatible)"
 
       # Verify directories exist and are writable
-      ls -la $(workspaces.test-results.path)/
+      echo "=== ARTIFACTS directory ==="
+      ls -la ${ARTIFACTS_DIR}/
+      echo "=== SHARED directory ==="
+      ls -la ${SHARED_DIR}/
 
       # Log environment information
-      echo "=== Test Environment Setup ===" | tee $(workspaces.test-results.path)/logs/setup.log
-      echo "OSDE2E_CONFIGS: $(params.OSDE2E_CONFIGS)" | tee -a $(workspaces.test-results.path)/logs/setup.log
-      echo "TEST_IMAGE: $(params.TEST_IMAGE):$(params.IMAGE_TAG)" | tee -a $(workspaces.test-results.path)/logs/setup.log
-      echo "CLOUD_PROVIDER_REGION: $(params.CLOUD_PROVIDER_REGION)" | tee -a $(workspaces.test-results.path)/logs/setup.log
-      echo "USE_EXISTING_CLUSTER: $(params.USE_EXISTING_CLUSTER)" | tee -a $(workspaces.test-results.path)/logs/setup.log
-      echo "Setup completed successfully" | tee -a $(workspaces.test-results.path)/logs/setup.log
+      echo "=== Test Environment Setup ===" | tee ${ARTIFACTS_DIR}/logs/setup.log
+      echo "OSDE2E_CONFIGS: $(params.OSDE2E_CONFIGS)" | tee -a ${ARTIFACTS_DIR}/logs/setup.log
+      echo "TEST_IMAGE: $(params.TEST_IMAGE):$(params.IMAGE_TAG)" | tee -a ${ARTIFACTS_DIR}/logs/setup.log
+      echo "CLOUD_PROVIDER_REGION: $(params.CLOUD_PROVIDER_REGION)" | tee -a ${ARTIFACTS_DIR}/logs/setup.log
+      echo "USE_EXISTING_CLUSTER: $(params.USE_EXISTING_CLUSTER)" | tee -a ${ARTIFACTS_DIR}/logs/setup.log
+      echo "Setup completed successfully" | tee -a ${ARTIFACTS_DIR}/logs/setup.log
 
     securityContext:
       runAsNonRoot: true
@@ -125,9 +130,12 @@ spec:
 
       echo "Starting osde2e test execution..."
 
+      # Define paths matching Prow structure
+      ARTIFACTS_DIR="$(workspaces.workspace.path)/artifacts"
+
       # Set test start time
       TEST_START_TIME=$(date -Iseconds)
-      echo "Test started at: $TEST_START_TIME" | tee $(workspaces.test-results.path)/logs/test-execution.log
+      echo "Test started at: $TEST_START_TIME" | tee ${ARTIFACTS_DIR}/logs/test-execution.log
 
       # Run osde2e tests with enhanced logging and result collection
       TEST_EXIT_CODE=0
@@ -136,32 +144,32 @@ spec:
         --skip-destroy-cluster \
         --skip-must-gather \
         --configs $(params.OSDE2E_CONFIGS) \
-        2>&1 | tee $(workspaces.test-results.path)/logs/osde2e-full.log || TEST_EXIT_CODE=$?
+        2>&1 | tee ${ARTIFACTS_DIR}/logs/osde2e-full.log || TEST_EXIT_CODE=$?
 
       # Set test end time
       TEST_END_TIME=$(date -Iseconds)
-      echo "Test completed at: $TEST_END_TIME" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
-      echo "Test exit code: $TEST_EXIT_CODE" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
+      echo "Test completed at: $TEST_END_TIME" | tee -a ${ARTIFACTS_DIR}/logs/test-execution.log
+      echo "Test exit code: $TEST_EXIT_CODE" | tee -a ${ARTIFACTS_DIR}/logs/test-execution.log
 
       # Determine test status
       if [ $TEST_EXIT_CODE -eq 0 ]; then
         echo "PASS" > $(results.test-status.path)
-        echo "✅ All tests passed" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
+        echo "✅ All tests passed" | tee -a ${ARTIFACTS_DIR}/logs/test-execution.log
       else
         echo "FAIL" > $(results.test-status.path)
-        echo "❌ Tests failed with exit code: $TEST_EXIT_CODE" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
+        echo "❌ Tests failed with exit code: $TEST_EXIT_CODE" | tee -a ${ARTIFACTS_DIR}/logs/test-execution.log
       fi
 
       # Create test summary
-      echo "=== Test Execution Summary ===" > $(workspaces.test-results.path)/logs/summary.log
-      echo "Start Time: $TEST_START_TIME" >> $(workspaces.test-results.path)/logs/summary.log
-      echo "End Time: $TEST_END_TIME" >> $(workspaces.test-results.path)/logs/summary.log
-      echo "Exit Code: $TEST_EXIT_CODE" >> $(workspaces.test-results.path)/logs/summary.log
-      echo "Status: $(cat $(results.test-status.path))" >> $(workspaces.test-results.path)/logs/summary.log
-      echo "Config: $(params.OSDE2E_CONFIGS)" >> $(workspaces.test-results.path)/logs/summary.log
+      echo "=== Test Execution Summary ===" > ${ARTIFACTS_DIR}/logs/summary.log
+      echo "Start Time: $TEST_START_TIME" >> ${ARTIFACTS_DIR}/logs/summary.log
+      echo "End Time: $TEST_END_TIME" >> ${ARTIFACTS_DIR}/logs/summary.log
+      echo "Exit Code: $TEST_EXIT_CODE" >> ${ARTIFACTS_DIR}/logs/summary.log
+      echo "Status: $(cat $(results.test-status.path))" >> ${ARTIFACTS_DIR}/logs/summary.log
+      echo "Config: $(params.OSDE2E_CONFIGS)" >> ${ARTIFACTS_DIR}/logs/summary.log
 
       # Copy summary to result
-      cp $(workspaces.test-results.path)/logs/summary.log $(results.test-summary.path)
+      cp ${ARTIFACTS_DIR}/logs/summary.log $(results.test-summary.path)
 
       # Always exit 0 here to allow collect-test-results step to run
       # The actual test status is stored in test-status result
@@ -185,11 +193,13 @@ spec:
       value: "$(params.CLUSTER_ID)"
     - name: CAD_PAGERDUTY_ROUTING_KEY
       value: "$(params.CAD_PAGERDUTY_ROUTING_KEY)"
-    # osde2e output configuration
+    # osde2e output configuration - use workspace subdirectories
+    - name: ARTIFACTS
+      value: "$(workspaces.workspace.path)/artifacts"
     - name: REPORT_DIR
-      value: "$(workspaces.test-results.path)/reports"
+      value: "$(workspaces.workspace.path)/artifacts"
     - name: SHARED_DIR
-      value: "$(workspaces.test-results.path)/shared"
+      value: "$(workspaces.workspace.path)/shared"
     # Credentials from Secret and Parameters (Secret takes precedence)
     - name: OCM_CLIENT_ID
       valueFrom:
@@ -244,38 +254,39 @@ spec:
 
       echo "Collecting and processing test results..."
 
-      # Process JUnit XML results from osde2e REPORT_DIR
-      # NOTE: We store summary only in Results (to avoid 4KB limit)
-      # Full JUnit XML is saved to workspace for later retrieval
+      # Define paths matching Prow structure
+      ARTIFACTS_DIR="$(workspaces.workspace.path)/artifacts"
+
+      # Process JUnit XML results from ARTIFACTS directory
       JUNIT_FOUND=false
 
-      # Check for JUnit XML in reports directory (osde2e default location)
-      if [ -d "$(workspaces.test-results.path)/reports" ]; then
-        echo "Searching for JUnit XML files in reports directory..."
-        find $(workspaces.test-results.path)/reports -name "*.xml" -type f > /tmp/junit_files.txt 2>/dev/null || true
+      # Check for JUnit XML in ARTIFACTS directory
+      if [ -d "${ARTIFACTS_DIR}" ]; then
+        echo "Searching for JUnit XML files in ARTIFACTS directory..."
+        find ${ARTIFACTS_DIR} -name "*.xml" -type f > /tmp/junit_files.txt 2>/dev/null || true
 
         if [ -s /tmp/junit_files.txt ]; then
           echo "Found JUnit XML files"
           JUNIT_COUNT=$(cat /tmp/junit_files.txt | wc -l)
 
           # Merge full results to workspace (not to Result)
-          cat $(cat /tmp/junit_files.txt) > $(workspaces.test-results.path)/junit/merged-results.xml 2>/dev/null && JUNIT_FOUND=true
+          cat $(cat /tmp/junit_files.txt) > ${ARTIFACTS_DIR}/junit/merged-results.xml 2>/dev/null && JUNIT_FOUND=true
 
           # Store only summary in Result (to avoid size limit)
           echo "JUnit: Found $JUNIT_COUNT XML file(s)" > $(results.test-results.path)
 
           # Log JUnit summary
-          echo "=== JUnit Results Summary ===" >> $(workspaces.test-results.path)/logs/summary.log
-          echo "JUnit XML files found: $JUNIT_COUNT" >> $(workspaces.test-results.path)/logs/summary.log
-          cat /tmp/junit_files.txt >> $(workspaces.test-results.path)/logs/summary.log
+          echo "=== JUnit Results Summary ===" >> ${ARTIFACTS_DIR}/logs/summary.log
+          echo "JUnit XML files found: $JUNIT_COUNT" >> ${ARTIFACTS_DIR}/logs/summary.log
+          cat /tmp/junit_files.txt >> ${ARTIFACTS_DIR}/logs/summary.log
         fi
       fi
 
-      # Also check for junit.xml in the main reports directory (common osde2e pattern)
-      if [ -f "$(workspaces.test-results.path)/reports/junit.xml" ]; then
-        echo "Found junit.xml in reports directory"
-        cp $(workspaces.test-results.path)/reports/junit.xml $(workspaces.test-results.path)/junit/junit.xml
-        echo "JUnit: reports/junit.xml" > $(results.test-results.path)
+      # Also check for junit.xml in the main ARTIFACTS directory (common osde2e pattern)
+      if [ -f "${ARTIFACTS_DIR}/junit.xml" ]; then
+        echo "Found junit.xml in ARTIFACTS directory"
+        cp ${ARTIFACTS_DIR}/junit.xml ${ARTIFACTS_DIR}/junit/junit.xml
+        echo "JUnit: artifacts/junit.xml" > $(results.test-results.path)
         JUNIT_FOUND=true
       fi
 
@@ -283,57 +294,55 @@ spec:
       if [ "$JUNIT_FOUND" = "false" ]; then
         echo "No JUnit XML results found"
         echo "JUnit: No results" > $(results.test-results.path)
-        echo "No JUnit XML files found" >> $(workspaces.test-results.path)/logs/summary.log
+        echo "No JUnit XML files found" >> ${ARTIFACTS_DIR}/logs/summary.log
       fi
 
-      # Consolidate all logs to workspace (not to Result to avoid size limit)
+      # Consolidate all logs to workspace
       echo "Consolidating test logs..."
       {
         echo "=== OSDE2E Test Execution Logs ==="
         echo "Generated at: $(date -Iseconds)"
         echo ""
 
-        if [ -f "$(workspaces.test-results.path)/logs/setup.log" ]; then
+        if [ -f "${ARTIFACTS_DIR}/logs/setup.log" ]; then
           echo "=== Setup Logs ==="
-          cat $(workspaces.test-results.path)/logs/setup.log
+          cat ${ARTIFACTS_DIR}/logs/setup.log
           echo ""
         fi
 
-        if [ -f "$(workspaces.test-results.path)/logs/test-execution.log" ]; then
+        if [ -f "${ARTIFACTS_DIR}/logs/test-execution.log" ]; then
           echo "=== Test Execution Summary ==="
-          cat $(workspaces.test-results.path)/logs/test-execution.log
+          cat ${ARTIFACTS_DIR}/logs/test-execution.log
           echo ""
         fi
 
-        if [ -f "$(workspaces.test-results.path)/logs/osde2e-full.log" ]; then
+        if [ -f "${ARTIFACTS_DIR}/logs/osde2e-full.log" ]; then
           echo "=== Full OSDE2E Output ==="
-          cat $(workspaces.test-results.path)/logs/osde2e-full.log
+          cat ${ARTIFACTS_DIR}/logs/osde2e-full.log
         fi
 
-        # Include osde2e generated logs from REPORT_DIR
-        if [ -d "$(workspaces.test-results.path)/reports" ]; then
-          echo ""
-          echo "=== OSDE2E Generated Files ==="
-          find $(workspaces.test-results.path)/reports -type f -name "*.log" 2>/dev/null | while read logfile; do
-            if [ -f "$logfile" ]; then
-              echo ""
-              echo "=== $(basename $logfile) ==="
-              cat "$logfile" 2>/dev/null || echo "Could not read $logfile"
-            fi
-          done
-
-          # Include test_output.log if it exists (osde2e default)
-          if [ -f "$(workspaces.test-results.path)/reports/test_output.log" ]; then
+        # Include osde2e generated logs from ARTIFACTS directory
+        echo ""
+        echo "=== OSDE2E Generated Files ==="
+        find ${ARTIFACTS_DIR} -type f -name "*.log" 2>/dev/null | while read logfile; do
+          if [ -f "$logfile" ]; then
             echo ""
-            echo "=== OSDE2E Test Output Log ==="
-            cat $(workspaces.test-results.path)/reports/test_output.log
+            echo "=== $(basename $logfile) ==="
+            cat "$logfile" 2>/dev/null || echo "Could not read $logfile"
           fi
+        done
+
+        # Include test_output.log if it exists (osde2e default)
+        if [ -f "${ARTIFACTS_DIR}/test_output.log" ]; then
+          echo ""
+          echo "=== OSDE2E Test Output Log ==="
+          cat ${ARTIFACTS_DIR}/test_output.log
         fi
-      } > $(workspaces.test-results.path)/logs/consolidated.log
+      } > ${ARTIFACTS_DIR}/logs/consolidated.log
 
       # Store only summary in Result (to avoid 4KB limit)
       echo "Logs consolidated at: $(date -Iseconds)" > $(results.test-logs.path)
-      echo "Full logs available in workspace: logs/consolidated.log" >> $(results.test-logs.path)
+      echo "Full logs available in workspace: artifacts/logs/consolidated.log" >> $(results.test-logs.path)
 
       echo "Test result collection completed successfully"
 
