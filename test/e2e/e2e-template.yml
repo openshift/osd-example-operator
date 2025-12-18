@@ -80,33 +80,33 @@ objects:
                 - name: OCM_CLIENT_ID
                   valueFrom:
                     secretKeyRef:
-                      name: osde2e-secrets
-                      key: OCM_CLIENT_ID
+                      name: osde2e-ocm-credentials
+                      key: ocm-client-id
                 - name: OCM_CLIENT_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: osde2e-secrets
-                      key: OCM_CLIENT_SECRET
+                      name: osde2e-ocm-credentials
+                      key: ocm-client-secret
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:
-                      name: osde2e-secrets
-                      key: AWS_ACCESS_KEY_ID
+                      name: osde2e-aws-credentials
+                      key: aws-access-key-id
                 - name: AWS_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: osde2e-secrets
-                      key: AWS_SECRET_ACCESS_KEY
+                      name: osde2e-aws-credentials
+                      key: aws-secret-access-key
                 - name: GEMINI_API_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: osde2e-secrets
-                      key: GEMINI_API_KEY
+                      name: osde2e-gcp-credentials
+                      key: gemini-api-key
                 - name: LOG_ANALYSIS_SLACK_WEBHOOK
                   valueFrom:
                     secretKeyRef:
-                      name: osde2e-secrets
-                      key: LOG_ANALYSIS_SLACK_WEBHOOK
+                      name: osde2e-ocm-credentials
+                      key: log-analysis-slack-webhook
                 - name: OCM_CCS
                   value: ${OCM_CCS}
                 - name: CLOUD_PROVIDER_REGION
@@ -118,6 +118,9 @@ objects:
                 - name: USE_EXISTING_CLUSTER
                   value: ${USE_EXISTING_CLUSTER}
                 - name: CAD_PAGERDUTY_ROUTING_KEY
-                  value: ${CAD_PAGERDUTY_ROUTING_KEY}
+                  valueFrom:
+                    secretKeyRef:
+                      name: osde2e-pagerduty-credentials
+                      key: cad-pagerduty-routing-key
                 - name: SLACK_NOTIFY
                   value: ${SLACK_NOTIFY}
