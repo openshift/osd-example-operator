@@ -1,0 +1,201 @@
+# OpenShift Template for OSDE2E Testing with Tekton Pipeline
+# This template creates a PipelineRun instead of a Job for enhanced observability
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: osde2e-focused-tests-tekton
+  labels:
+    app: osde2e
+    component: testing
+    version: tekton-v1
+  annotations:
+    description: "OSDE2E focused tests using Tekton Pipeline for enhanced observability"
+    iconClass: "icon-openshift"
+    tags: "osde2e,testing,tekton,pipeline"
+    openshift.io/display-name: "OSDE2E Tekton Tests"
+    openshift.io/documentation-url: "https://github.com/openshift/osde2e"
+    openshift.io/support-url: "https://github.com/openshift/osd-example-operator"
+parameters:
+  - name: OSDE2E_CONFIGS
+    displayName: "OSDE2E Configurations"
+    description: "Configuration string for osde2e (e.g., rosa,sts,int,ad-hoc-image)"
+    required: true
+  - name: TEST_IMAGE
+    displayName: "Test Image"
+    description: "The test image to run"
+    required: true
+  - name: OCM_CLIENT_ID
+    displayName: "OCM Client ID"
+    description: "OCM client ID for authentication"
+    required: false
+  - name: OCM_CLIENT_SECRET
+    displayName: "OCM Client Secret"
+    description: "OCM client secret for authentication"
+    required: false
+  - name: OCM_CCS
+    displayName: "OCM CCS"
+    description: "OCM CCS configuration"
+    required: false
+  - name: AWS_ACCESS_KEY_ID
+    displayName: "AWS Access Key ID"
+    description: "AWS access key ID"
+    required: false
+  - name: AWS_SECRET_ACCESS_KEY
+    displayName: "AWS Secret Access Key"
+    description: "AWS secret access key"
+    required: false
+  - name: CLOUD_PROVIDER_REGION
+    displayName: "Cloud Provider Region"
+    description: "Cloud provider region"
+    required: false
+    value: "us-east-1"
+  - name: GCP_CREDS_JSON
+    displayName: "GCP Credentials JSON"
+    description: "GCP credentials in JSON format"
+    required: false
+  - name: JOBID
+    displayName: "Job ID"
+    description: "Unique identifier for this test run"
+    generate: expression
+    from: "[0-9a-z]{7}"
+  - name: IMAGE_TAG
+    displayName: "Image Tag"
+    description: "Tag for the test image"
+    value: ''
+    required: true
+  - name: LOG_BUCKET
+    displayName: "Log Bucket"
+    description: "S3 bucket for storing logs"
+    value: 'osde2e-logs'
+  - name: USE_EXISTING_CLUSTER
+    displayName: "Use Existing Cluster"
+    description: "Whether to use an existing cluster"
+    value: 'TRUE'
+  - name: CAD_PAGERDUTY_ROUTING_KEY
+    displayName: "PagerDuty Routing Key"
+    description: "PagerDuty routing key for alerts"
+    required: false
+objects:
+  # PersistentVolumeClaim for test workspace
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: osde2e-test-workspace-${JOBID}
+      labels:
+        app: osde2e
+        component: testing
+        job-id: ${JOBID}
+        test-image-tag: ${IMAGE_TAG}
+      annotations:
+        description: "Workspace for OSDE2E test execution and result storage"
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      storageClassName: gp3-csi
+
+  # ServiceAccount for PipelineRun execution
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: osde2e-pipeline-sa-${JOBID}
+      labels:
+        app: osde2e
+        component: testing
+        job-id: ${JOBID}
+      annotations:
+        description: "Service account for OSDE2E pipeline execution"
+
+  # Role for pipeline execution permissions
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: osde2e-pipeline-role-${JOBID}
+      labels:
+        app: osde2e
+        component: testing
+        job-id: ${JOBID}
+    rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/log", "persistentvolumeclaims"]
+      verbs: ["get", "list", "create", "update", "patch", "delete"]
+    - apiGroups: ["tekton.dev"]
+      resources: ["taskruns", "pipelineruns"]
+      verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  # RoleBinding for ServiceAccount
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: osde2e-pipeline-rolebinding-${JOBID}
+      labels:
+        app: osde2e
+        component: testing
+        job-id: ${JOBID}
+    subjects:
+    - kind: ServiceAccount
+      name: osde2e-pipeline-sa-${JOBID}
+    roleRef:
+      kind: Role
+      name: osde2e-pipeline-role-${JOBID}
+      apiGroup: rbac.authorization.k8s.io
+
+  # PipelineRun for test execution
+  - apiVersion: tekton.dev/v1
+    kind: PipelineRun
+    metadata:
+      name: osde2e-osd-example-operator-${IMAGE_TAG}-${JOBID}
+      labels:
+        app: osde2e
+        component: testing
+        job-id: ${JOBID}
+        test-image-tag: ${IMAGE_TAG}
+        osde2e-configs: ${OSDE2E_CONFIGS}
+      annotations:
+        # Enable Tekton Results collection
+        results.tekton.dev/record: "true"
+        results.tekton.dev/log: "true"
+        # Additional metadata for observability
+        osde2e.openshift.io/config: ${OSDE2E_CONFIGS}
+        osde2e.openshift.io/test-image: ${TEST_IMAGE}:${IMAGE_TAG}
+        osde2e.openshift.io/region: ${CLOUD_PROVIDER_REGION}
+        osde2e.openshift.io/job-id: ${JOBID}
+        description: "OSDE2E test execution for osd-example-operator"
+    spec:
+      serviceAccountName: osde2e-pipeline-sa-${JOBID}
+      pipelineRef:
+        name: osde2e-test-pipeline
+      params:
+      - name: OSDE2E_CONFIGS
+        value: ${OSDE2E_CONFIGS}
+      - name: TEST_IMAGE
+        value: ${TEST_IMAGE}
+      - name: IMAGE_TAG
+        value: ${IMAGE_TAG}
+      - name: OCM_CLIENT_ID
+        value: ${OCM_CLIENT_ID}
+      - name: OCM_CLIENT_SECRET
+        value: ${OCM_CLIENT_SECRET}
+      - name: AWS_ACCESS_KEY_ID
+        value: ${AWS_ACCESS_KEY_ID}
+      - name: AWS_SECRET_ACCESS_KEY
+        value: ${AWS_SECRET_ACCESS_KEY}
+      - name: CLOUD_PROVIDER_REGION
+        value: ${CLOUD_PROVIDER_REGION}
+      - name: LOG_BUCKET
+        value: ${LOG_BUCKET}
+      - name: USE_EXISTING_CLUSTER
+        value: ${USE_EXISTING_CLUSTER}
+      - name: CAD_PAGERDUTY_ROUTING_KEY
+        value: ${CAD_PAGERDUTY_ROUTING_KEY}
+      workspaces:
+      - name: test-workspace
+        persistentVolumeClaim:
+          claimName: osde2e-test-workspace-${JOBID}
+      # Timeout for the entire pipeline (3 hours like the original Job)
+      timeouts:
+        pipeline: "3h0m0s"
+        tasks: "2h45m0s"
+        finally: "15m0s"
