@@ -1,0 +1,132 @@
+---
+# Create dedicated service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: osde2e-workflow
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+
+---
+# Create ClusterRole - define required permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: osde2e-workflow-role
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+rules:
+# Basic cluster information read permissions
+- apiGroups: [""]
+  resources: ["services", "endpoints", "nodes"]
+  verbs: ["get", "list"]
+
+# Pod management permissions
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "pods/status"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+
+# Event viewing permissions
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list"]
+
+# Namespace management permissions - expanded for separated workflow
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# ConfigMap and Secret permissions (if needed)
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+# ServiceAccount management permissions for separated workflow
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# RBAC permissions for separated workflow
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+# Grant the permissions that the operator will need (so we can create ClusterRole for it)
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["managed.openshift.io"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+# Deployment management permissions - expanded for any namespace
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+  resourceNames: []
+
+- apiGroups: ["hive.openshift.io"]
+  resources: ["selectorsyncsets"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
+
+---
+# Bind ClusterRole to ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: osde2e-workflow-binding
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+subjects:
+- kind: ServiceAccount
+  name: osde2e-workflow
+  namespace: argo
+roleRef:
+  kind: ClusterRole
+  name: osde2e-workflow-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Create more fine-grained Role for argo namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: osde2e-argo-namespace-role
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+rules:
+# Full permissions in argo namespace
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+# Bind argo namespace Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: osde2e-argo-namespace-binding
+  namespace: argo
+  labels:
+    app: osde2e-workflow
+    purpose: quality-gate
+subjects:
+- kind: ServiceAccount
+  name: osde2e-workflow
+  namespace: argo
+roleRef:
+  kind: Role
+  name: osde2e-argo-namespace-role
+  apiGroup: rbac.authorization.k8s.io
