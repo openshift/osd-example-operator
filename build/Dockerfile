@@ -6,7 +6,7 @@ COPY . /osd-example-operator
 WORKDIR /osd-example-operator
 RUN make go-build
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1764794109
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1769056855
 ENV OPERATOR=/usr/local/bin/osd-example-operator \
     USER_UID=1001 \
     USER_NAME=osd-example-operator
