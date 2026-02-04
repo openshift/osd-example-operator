@@ -5,11 +5,11 @@ package osde2etests
 
 import (
 	"context"
-	"fmt"
+	"os"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ocme2e "github.com/openshift/osde2e-common/pkg/clients/ocm"
-	"os"
 )
 
 var _ = Describe("osd-example-operator", func() {
@@ -29,8 +29,8 @@ var _ = Describe("osd-example-operator", func() {
 	})
 
 	// Failing test for log analysis demo
-	It("should fail on purpose", func() {
-		fmt.Println("Running Intentional Failure Test")
-		Expect(true).To(BeFalse(), "This test is designed to fail intentionally")
-	})
+	// It("should fail on purpose", func() {
+	// 	fmt.Println("Running Intentional Failure Test")
+	// 	Expect(true).To(BeFalse(), "This test is designed to fail intentionally")
+	// })
 })
