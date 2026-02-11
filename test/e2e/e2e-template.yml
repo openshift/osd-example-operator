@@ -29,7 +29,7 @@ parameters:
     value: ''
     required: true
   - name: LOG_BUCKET
-    value: 'osde2e-logs'
+    value: 'sdcicd-osde2e-logs'
   - name: USE_EXISTING_CLUSTER
     value: 'TRUE'
   - name: CAD_PAGERDUTY_ROUTING_KEY
