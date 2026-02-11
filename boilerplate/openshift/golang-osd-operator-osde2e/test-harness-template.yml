@@ -27,7 +27,7 @@ parameters:
     value: ''
     required: true
   - name: LOG_BUCKET
-    value: 'sdcicd-osde2e-logs'
+    value: 'osde2e-logs'
 objects:
   - apiVersion: batch/v1
     kind: Job
@@ -73,4 +73,4 @@ objects:
                 - name: GCP_CREDS_JSON
                   value: ${GCP_CREDS_JSON}
                 - name: LOG_BUCKET
-                  value: ${LOG_BUCKET}
+                  value: ${LOG_BUCKET}                 
