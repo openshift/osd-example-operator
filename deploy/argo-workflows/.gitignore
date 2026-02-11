@@ -1,0 +1,35 @@
+# Security: Ignore local credential files with real values
+# The main secrets.yaml now contains placeholders and is safe to commit
+
+# Backup and old files (cleanup completed)
+*.bak
+*.backup
+*-old.*
+*-backup.*
+
+# Temporary files and test artifacts
+*.tmp
+*.temp
+test-*.sh
+verify-*.sh
+
+# Downloaded artifacts
+downloads/
+artifacts/
+
+# Local configuration overrides
+local-*.yaml
+*-local.yaml
+secrets-local.yaml
+
+# IDE and system files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Generated documentation
+*.html.tmp
+*.md.backup
