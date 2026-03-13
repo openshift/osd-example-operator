@@ -60,7 +60,6 @@ objects:
               args:
                 - test
                 - --only-health-check-nodes
-                - --skip-destroy-cluster
                 - --skip-must-gather
                 - --log-analysis-enable
                 - --configs
