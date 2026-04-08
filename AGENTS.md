@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents when working with code in this repository.
 
 ## What This Repo Is
 
@@ -56,7 +56,7 @@ OCM_ENVIRONMENT=stage KUBECONFIG=/path/to/kubeconfig ginkgo --tags=osde2e -v tes
 
 ## Architecture
 
-```
+```text
 main.go                          # Entry point: controller-runtime manager setup
 api/v1alpha1/                    # CRD types (Example) -- kubebuilder-generated
 internal/controller/             # Reconciler logic (ExampleReconciler)
