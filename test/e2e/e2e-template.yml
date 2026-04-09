@@ -65,6 +65,13 @@ objects:
                 - --log-analysis-enable
                 - --configs
                 - ${OSDE2E_CONFIGS}
+              resources:
+                requests:
+                  cpu: "300m"
+                  memory: "600Mi"
+                limits:
+                  cpu: "1"
+                  memory: "1200Mi"
               securityContext:
                 runAsNonRoot: true
                 allowPrivilegeEscalation: false
