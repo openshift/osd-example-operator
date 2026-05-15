@@ -1,0 +1,44 @@
+apiVersion: manifests.package-operator.run/v1alpha1
+kind: PackageManifest
+metadata:
+  name: osd-example-operator
+  annotations:
+    name: annotation
+spec:
+  scopes:
+    - Cluster
+  phases:
+    - name: namespace
+    - name: cleanup-rbac
+    - name: cleanup-deploy
+    - name: crds
+    - name: rbac
+    - name: deploy
+  availibilityProbes:
+    - selector:
+        kind:
+          group: apps
+          kind: Deployment
+      probes:
+        - condition:
+            type: Available
+            status: "True"
+        - fieldsEqual:
+            fieldA: .status.updatedReplicas
+            fieldB: .status.replicas
+    - selector:
+        kind:
+          group: batch/v1
+          kind: Job
+      probes:
+        - condition:
+            type: Complete
+            status: "True"
+  config:
+    openAPIV3Schema:
+      properties:
+        image:
+          description: Operator image to deploy
+          type: string
+          default: None
+      type: object

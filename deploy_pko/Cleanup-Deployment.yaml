@@ -1,0 +1,34 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "olm-cleanup"
+  namespace: "openshift-osd-example-operator"
+  annotations:
+    package-operator.run/phase: cleanup-deploy
+    package-operator.run/collision-protection: IfNoController
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    metadata:
+      annotations:
+        openshift.io/required-scc: restricted-v2
+    spec:
+      serviceAccountName: "olm-cleanup"
+      priorityClassName: openshift-user-critical
+      restartPolicy: Never
+      containers:
+        - name: delete-csv
+          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              #!/bin/sh
+              set -euxo pipefail
+              oc -n openshift-osd-example-operator delete csv -l "operators.coreos.com/osd-example-operator.openshift-osd-example-operator"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
