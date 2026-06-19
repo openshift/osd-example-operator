@@ -1,0 +1,332 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: osde2e-test-task
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/categories: Testing
+    tekton.dev/tags: osde2e,testing,e2e
+    tekton.dev/displayName: "OSDE2E Test Task"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    This task runs osde2e tests and collects results for Tekton Results observability.
+    It captures stdout logs, JUnit XML results, and test status for pipeline observability.
+
+  params:
+  - name: OSDE2E_CONFIGS
+    type: string
+    description: Configuration string for osde2e (e.g., "rosa,sts,int,ad-hoc-image")
+  - name: TEST_IMAGE
+    type: string
+    description: The test image to run
+  - name: IMAGE_TAG
+    type: string
+    description: Tag for the test image
+    default: "latest"
+  - name: OCM_CLIENT_ID
+    type: string
+    description: OCM client ID for authentication
+    default: ""
+  - name: OCM_CLIENT_SECRET
+    type: string
+    description: OCM client secret for authentication
+    default: ""
+  - name: AWS_ACCESS_KEY_ID
+    type: string
+    description: AWS access key ID
+    default: ""
+  - name: AWS_SECRET_ACCESS_KEY
+    type: string
+    description: AWS secret access key
+    default: ""
+  - name: CLOUD_PROVIDER_REGION
+    type: string
+    description: Cloud provider region
+    default: "us-east-1"
+  - name: LOG_BUCKET
+    type: string
+    description: S3 bucket for logs
+    default: "osde2e-logs"
+  - name: USE_EXISTING_CLUSTER
+    type: string
+    description: Whether to use existing cluster
+    default: "TRUE"
+  - name: CAD_PAGERDUTY_ROUTING_KEY
+    type: string
+    description: PagerDuty routing key for alerts
+    default: ""
+
+  results:
+  - name: test-results
+    description: JUnit XML test results
+  - name: test-logs
+    description: Test execution logs
+  - name: test-status
+    description: Overall test status (PASS/FAIL)
+  - name: test-summary
+    description: Test execution summary
+
+  workspaces:
+  - name: test-results
+    description: Workspace for storing test results and logs
+    mountPath: /workspace/test-results
+
+  steps:
+  - name: fix-workspace-permissions
+    image: registry.access.redhat.com/ubi8/ubi-minimal:latest
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "Fixing workspace permissions..."
+
+      # Create directories with proper permissions
+      mkdir -p $(workspaces.test-results.path)/junit
+      mkdir -p $(workspaces.test-results.path)/logs
+      mkdir -p $(workspaces.test-results.path)/reports
+      mkdir -p $(workspaces.test-results.path)/shared
+
+      # Set permissions for non-root user (osde2e runs as UID 1001)
+      chown -R 1001:0 $(workspaces.test-results.path)
+      chmod -R 775 $(workspaces.test-results.path)
+
+      echo "Workspace permissions fixed successfully"
+
+    securityContext:
+      runAsUser: 0  # Run as root to fix permissions
+      allowPrivilegeEscalation: true
+
+  - name: setup-test-environment
+    image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "Setting up test environment..."
+
+      # Verify directories exist and are writable
+      ls -la $(workspaces.test-results.path)/
+
+      # Log environment information
+      echo "=== Test Environment Setup ===" | tee $(workspaces.test-results.path)/logs/setup.log
+      echo "OSDE2E_CONFIGS: $(params.OSDE2E_CONFIGS)" | tee -a $(workspaces.test-results.path)/logs/setup.log
+      echo "TEST_IMAGE: $(params.TEST_IMAGE):$(params.IMAGE_TAG)" | tee -a $(workspaces.test-results.path)/logs/setup.log
+      echo "CLOUD_PROVIDER_REGION: $(params.CLOUD_PROVIDER_REGION)" | tee -a $(workspaces.test-results.path)/logs/setup.log
+      echo "USE_EXISTING_CLUSTER: $(params.USE_EXISTING_CLUSTER)" | tee -a $(workspaces.test-results.path)/logs/setup.log
+      echo "Setup completed successfully" | tee -a $(workspaces.test-results.path)/logs/setup.log
+
+    securityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      seccompProfile:
+        type: RuntimeDefault
+
+  - name: run-osde2e-tests
+    image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "Starting osde2e test execution..."
+
+      # Set test start time
+      TEST_START_TIME=$(date -Iseconds)
+      echo "Test started at: $TEST_START_TIME" | tee $(workspaces.test-results.path)/logs/test-execution.log
+
+      # Run osde2e tests with enhanced logging and result collection
+      TEST_EXIT_CODE=0
+      /osde2e test \
+        --only-health-check-nodes \
+        --skip-destroy-cluster \
+        --skip-must-gather \
+        --configs $(params.OSDE2E_CONFIGS) \
+        2>&1 | tee $(workspaces.test-results.path)/logs/osde2e-full.log || TEST_EXIT_CODE=$?
+
+      # Set test end time
+      TEST_END_TIME=$(date -Iseconds)
+      echo "Test completed at: $TEST_END_TIME" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
+      echo "Test exit code: $TEST_EXIT_CODE" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
+
+      # Determine test status
+      if [ $TEST_EXIT_CODE -eq 0 ]; then
+        echo "PASS" > $(results.test-status.path)
+        echo "✅ All tests passed" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
+      else
+        echo "FAIL" > $(results.test-status.path)
+        echo "❌ Tests failed with exit code: $TEST_EXIT_CODE" | tee -a $(workspaces.test-results.path)/logs/test-execution.log
+      fi
+
+      # Create test summary
+      echo "=== Test Execution Summary ===" > $(workspaces.test-results.path)/logs/summary.log
+      echo "Start Time: $TEST_START_TIME" >> $(workspaces.test-results.path)/logs/summary.log
+      echo "End Time: $TEST_END_TIME" >> $(workspaces.test-results.path)/logs/summary.log
+      echo "Exit Code: $TEST_EXIT_CODE" >> $(workspaces.test-results.path)/logs/summary.log
+      echo "Status: $(cat $(results.test-status.path))" >> $(workspaces.test-results.path)/logs/summary.log
+      echo "Config: $(params.OSDE2E_CONFIGS)" >> $(workspaces.test-results.path)/logs/summary.log
+
+      # Copy summary to result
+      cp $(workspaces.test-results.path)/logs/summary.log $(results.test-summary.path)
+
+      # Exit with the original test exit code to maintain pipeline behavior
+      exit $TEST_EXIT_CODE
+
+    env:
+    # Test configuration
+    - name: AD_HOC_TEST_IMAGES
+      value: "$(params.TEST_IMAGE):$(params.IMAGE_TAG)"
+    - name: CLOUD_PROVIDER_REGION
+      value: "$(params.CLOUD_PROVIDER_REGION)"
+    - name: LOG_BUCKET
+      value: "$(params.LOG_BUCKET)"
+    - name: USE_EXISTING_CLUSTER
+      value: "$(params.USE_EXISTING_CLUSTER)"
+    - name: CAD_PAGERDUTY_ROUTING_KEY
+      value: "$(params.CAD_PAGERDUTY_ROUTING_KEY)"
+    # osde2e output configuration
+    - name: REPORT_DIR
+      value: "$(workspaces.test-results.path)/reports"
+    - name: SHARED_DIR
+      value: "$(workspaces.test-results.path)/shared"
+    # Credentials from Secret and Parameters (Secret takes precedence)
+    - name: OCM_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: osde2e-credentials
+          key: OCM_CLIENT_ID
+          optional: true
+    - name: OCM_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: osde2e-credentials
+          key: OCM_CLIENT_SECRET
+          optional: true
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: osde2e-credentials
+          key: AWS_ACCESS_KEY_ID
+          optional: true
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: osde2e-credentials
+          key: AWS_SECRET_ACCESS_KEY
+          optional: true
+    # Fallback to parameters if secret is not available
+    - name: OCM_CLIENT_ID_PARAM
+      value: "$(params.OCM_CLIENT_ID)"
+    - name: OCM_CLIENT_SECRET_PARAM
+      value: "$(params.OCM_CLIENT_SECRET)"
+    - name: AWS_ACCESS_KEY_ID_PARAM
+      value: "$(params.AWS_ACCESS_KEY_ID)"
+    - name: AWS_SECRET_ACCESS_KEY_PARAM
+      value: "$(params.AWS_SECRET_ACCESS_KEY)"
+
+    securityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      seccompProfile:
+        type: RuntimeDefault
+
+  - name: collect-test-results
+    image: quay.io/redhat-services-prod/osde2e-cicada-tenant/osde2e:latest
+    script: |
+      #!/bin/bash
+      set -euo pipefail
+
+      echo "Collecting and processing test results..."
+
+      # Process JUnit XML results from osde2e REPORT_DIR
+      JUNIT_FOUND=false
+
+      # Check for JUnit XML in reports directory (osde2e default location)
+      if [ -d "$(workspaces.test-results.path)/reports" ]; then
+        echo "Searching for JUnit XML files in reports directory..."
+        find $(workspaces.test-results.path)/reports -name "*.xml" -type f > /tmp/junit_files.txt 2>/dev/null || true
+
+        if [ -s /tmp/junit_files.txt ]; then
+          echo "Found JUnit XML files, merging results..."
+          cat $(cat /tmp/junit_files.txt) > $(results.test-results.path) 2>/dev/null && JUNIT_FOUND=true
+
+          # Log JUnit summary
+          echo "=== JUnit Results Summary ===" >> $(workspaces.test-results.path)/logs/summary.log
+          echo "JUnit XML files found:" >> $(workspaces.test-results.path)/logs/summary.log
+          cat /tmp/junit_files.txt >> $(workspaces.test-results.path)/logs/summary.log
+        fi
+      fi
+
+      # Also check for junit.xml in the main reports directory (common osde2e pattern)
+      if [ -f "$(workspaces.test-results.path)/reports/junit.xml" ]; then
+        echo "Found junit.xml in reports directory"
+        cp $(workspaces.test-results.path)/reports/junit.xml $(results.test-results.path)
+        JUNIT_FOUND=true
+      fi
+
+      # If no JUnit results found, create empty result
+      if [ "$JUNIT_FOUND" = "false" ]; then
+        echo "No JUnit XML results found, creating empty result"
+        echo '<?xml version="1.0" encoding="UTF-8"?><testsuite name="osde2e" tests="0" failures="0" errors="0" time="0"/>' > $(results.test-results.path)
+        echo "No JUnit XML files found" >> $(workspaces.test-results.path)/logs/summary.log
+      fi
+
+      # Consolidate all logs
+      echo "Consolidating test logs..."
+      {
+        echo "=== OSDE2E Test Execution Logs ==="
+        echo "Generated at: $(date -Iseconds)"
+        echo ""
+
+        if [ -f "$(workspaces.test-results.path)/logs/setup.log" ]; then
+          echo "=== Setup Logs ==="
+          cat $(workspaces.test-results.path)/logs/setup.log
+          echo ""
+        fi
+
+        if [ -f "$(workspaces.test-results.path)/logs/test-execution.log" ]; then
+          echo "=== Test Execution Summary ==="
+          cat $(workspaces.test-results.path)/logs/test-execution.log
+          echo ""
+        fi
+
+        if [ -f "$(workspaces.test-results.path)/logs/osde2e-full.log" ]; then
+          echo "=== Full OSDE2E Output ==="
+          cat $(workspaces.test-results.path)/logs/osde2e-full.log
+        fi
+
+        # Include osde2e generated logs from REPORT_DIR
+        if [ -d "$(workspaces.test-results.path)/reports" ]; then
+          echo ""
+          echo "=== OSDE2E Generated Files ==="
+          find $(workspaces.test-results.path)/reports -type f -name "*.log" 2>/dev/null | while read logfile; do
+            if [ -f "$logfile" ]; then
+              echo ""
+              echo "=== $(basename $logfile) ==="
+              cat "$logfile" 2>/dev/null || echo "Could not read $logfile"
+            fi
+          done
+
+          # Include test_output.log if it exists (osde2e default)
+          if [ -f "$(workspaces.test-results.path)/reports/test_output.log" ]; then
+            echo ""
+            echo "=== OSDE2E Test Output Log ==="
+            cat $(workspaces.test-results.path)/reports/test_output.log
+          fi
+        fi
+      } > $(results.test-logs.path)
+
+      echo "Test result collection completed successfully"
+
+    securityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      seccompProfile:
+        type: RuntimeDefault
