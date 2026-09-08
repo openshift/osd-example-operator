@@ -1,0 +1,15 @@
+# Based on Aurora team pattern (aws-account-operator) + splunk-forwarder-operator baseline
+inheritance: true
+reviews:
+  path_filters:
+    # Exclude boilerplate changes from review
+    - "!boilerplate/**"
+
+    # Exclude build artifacts and dependencies
+    - "!build/**"
+    - "!.venv/**"
+    - "!vendor/**"
+
+    # Exclude test fixtures
+    - "!**/testdata/**"
+    - "!**/.test-fixtures/**"
