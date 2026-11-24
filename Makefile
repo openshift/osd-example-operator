@@ -1,3 +1,5 @@
+FIPS_ENABLED=true
+
 include boilerplate/generated-includes.mk
 
 export SKIP_SAAS_FILE_CHECKS=true
